@@ -68,17 +68,3 @@ GPP_year_plot
 
 GPP_ET_allschemeplot <- plot_grid(GPP_year_plot, ET_year_plot, ncol=1)
 ggsave('GPP_ET_allscheme_year_plot.jpg', width=7, height=6, dpi=900, plot=GPP_ET_allschemeplot)
-
-############## Scheme plots ###############################
-load('Plots/deSetembro_GAMplot.rdata')
-load('Plots/Khanimambo_GAMplot.rdata')
-load('Plots/Kiwere_GAMplot.rdata')
-load('Plots/Magozi_GAMplot.rdata')
-load('Plots/Mkoba_GAMplot.rdata')
-load('Plots/Silalatshani_GAMplot.rdata')
-
-all_plots <- plot_grid(deSetembro_GAMplot, Kiwere_GAMplot,
-          Mkoba_GAMplot, Khanimambo_GAMplot,
-          Magozi_GAMplot, Silalatshani_GAMplot, ncol=3)
-all_plots
-ggsave('Plots/all_schemes.jpg', width=14, height=10, dpi=900, plot=all_plots)
