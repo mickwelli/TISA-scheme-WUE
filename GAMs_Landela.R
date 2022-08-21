@@ -1,0 +1,536 @@
+library(mgcv)
+library(tidyverse)
+library(lubridate)
+library(mgcViz)
+library(viridis)
+library(gridExtra)
+library(ggpubr)
+library(cowplot)
+library(gratia)
+library(gganimate)
+library(gifski)
+library(zoo)
+library(ggsci)
+library(ggbreak)
+library(rgdal)
+library(scales)
+library(sf)
+library(itsadug)
+
+Landela_df <- readRDS("GAMM_data\\Landela_df.rds")
+
+# Columns 
+Landela_df$sensor <- as.factor(Landela_df$sensor)
+Landela_df <- Landela_df %>% 
+  mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
+
+
+# Clean data
+Landela_df_nona <- Landela_df[!is.na(Landela_df$GPP) & (Landela_df$GPP > 0) & 
+                                      !is.na(Landela_df$ETa) & (Landela_df$ETa > 0) &
+                                      !is.na(Landela_df$Ea) & (Landela_df$Ea > 0) & 
+                                      !is.na(Landela_df$Ta) & (Landela_df$Ta > 0) &
+                                      (Landela_df$year > 2012),]
+
+#Landela_df_nona <- Landela_df_nona %>% mutate(GPP = replace(GPP, GPP>15, NA))
+
+
+# List of formulae with different time lags for rainfall (30, 60, 90, 120 day)
+GPP_f_30 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_30, bs="cr", k=30) 
+
+GPP_f_60 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_60, bs="cr", k=30) 
+
+GPP_f_90 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30) 
+
+GPP_f_120 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_120, bs="cr", k=30)
+
+GPP_fs <- list(GPP_f_30, GPP_f_60, GPP_f_90, GPP_f_120)
+
+#Loop through different lags and test with anova
+GPP_Landela_GAM1 <- bam(GPP_f_30, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+GPP_Landela_GAM2 <- bam(GPP_f_60, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+GPP_Landela_GAM3 <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+GPP_Landela_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+
+anova(GPP_Landela_GAM1, GPP_Landela_GAM2, GPP_Landela_GAM3, GPP_Landela_GAM4, test='F')
+
+# Run GAMs for biomass (GPP)
+GPP_Landela_GAM <- GPP_Landela_GAM3
+
+resids_Landela_GPP <- residuals.gam(GPP_Landela_GAM)
+valRho_Landela_GPP <- acf(resids_Landela_GPP, plot=FALSE)$acf[2]
+GPP_Landela_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Landela_df_nona, rho = valRho_Landela_GPP)
+GPP_Landela_GAM1_vis <- getViz(GPP_Landela_GAM)
+
+check(GPP_Landela_GAM1_vis)
+
+GPP_Landela_year_plot <- plot_smooth(GPP_Landela_GAM, view = 'year', transform = exp)
+
+##
+GPP_Landela_year_plot_gg <- ggplot(data=GPP_Landela_year_plot$fv, aes(x=year, y=fit))+
+  geom_line()+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
+  labs(x="Year", y=expression(paste("GPP gC/m"^2,paste("/day"))))+theme_minimal()
+
+GPP_Landela_space_plot <- plot(sm(GPP_Landela_GAM1_vis, 3), trans = function(x){ 
+  GPP_Landela_GAM$family$linkinv(coef(GPP_Landela_GAM)[1] + x) 
+}) 
+GPP_Landela_space_plot_gg <- ggplot(data=(GPP_Landela_space_plot$data$fit%>% na.omit()), aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
+
+##
+
+GPP_Landela_yearxspace <- plotSlice(sm(GPP_Landela_GAM1_vis,5), fix=list("year"=seq(2013,2021)), trans = exp)+labs(title = "GPP") +
+  guides(fill=guide_colourbar("GPP"))
+
+GPP_Landela_yearxspace_plot <- ggplot()+geom_raster(data=GPP_Landela_yearxspace$data$fit, aes(x=x, y=y, fill=tz), alpha=0.8)+
+  scale_fill_viridis_c(labels=label_wrap(5))+theme_void()+
+  facet_wrap(~.fx.year)+geom_contour(data=GPP_Landela_yearxspace$data$fit, aes(x=x, y=y, z=tz, col='red'))+
+  labs(fill="GPP (gC/m2)")+coord_equal()+guides(alpha="none", colour="none")
+
+GPP_Landela_yearxmonth <- plot(sm(GPP_Landela_GAM1_vis, 4), trans = function(x){ 
+  GPP_Landela_GAM$family$linkinv(coef(GPP_Landela_GAM)[1] + x) 
+}) 
+
+GPP_Landela_yearxmonth_plot <- ggplot(data=GPP_Landela_yearxmonth$data$fit, aes(x=y, y=x, fill=tz)) +
+  geom_raster()+
+  geom_contour(aes(x=y, y=x, z=tz, col="red"), show.legend = FALSE)+
+  scale_fill_viridis_c(labels=label_wrap(5))+
+  scale_y_continuous(breaks=seq(2013, 2021, by=1))+
+  scale_x_continuous(breaks=seq(1, 12, by=1))+
+  labs(y="Year", x="Month", fill="GPP (gC/m2)") + theme_bw()
+
+# Run GAMs for WUE, evapotranspiration (ETa), evaporation (Ea), transpiration (Ta) 
+# Stick with 90 day lag
+
+Landela_df_nona$WUE <- Landela_df_nona$GPP / Landela_df_nona$ETa
+
+WUE_f_90 <- log(WUE) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+ETa_f_90 <- log(ETa) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ta_f_90 <- log(Ta) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ea_f_90 <- log(Ea) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+WUE_Landela_GAM <- bam(WUE_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona)
+resids_Landela_WUE <- residuals.gam(WUE_Landela_GAM)
+valRho_Landela_WUE <- acf(resids_Landela_WUE , plot=FALSE)$acf[2]
+WUE_Landela_GAM <- bam(WUE_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona, rho = valRho_Landela_WUE)
+
+WUE_Landela_GAM1_vis <- getViz(WUE_Landela_GAM)
+
+ETa_Landela_GAM <- bam(ETa_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona)
+resids_Landela_ETa <- residuals.gam(ETa_Landela_GAM)
+valRho_Landela_ETa <- acf(resids_Landela_ETa , plot=FALSE)$acf[2]
+ETa_Landela_GAM <- bam(ETa_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona, rho = valRho_Landela_ETa)
+
+ETa_Landela_GAM1_vis <- getViz(ETa_Landela_GAM)
+
+Ta_Landela_GAM <- bam(Ta_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona)
+resids_Landela_Ta <- residuals.gam(Ta_Landela_GAM)
+valRho_Landela_Ta <- acf(resids_Landela_Ta , plot=FALSE)$acf[2]
+Ta_Landela_GAM <- bam(Ta_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona, rho = valRho_Landela_Ta)
+
+Ta_Landela_GAM1_vis <- getViz(Ta_Landela_GAM)
+
+Ea_Landela_GAM <- bam(Ea_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona)
+resids_Landela_Ea <- residuals.gam(Ea_Landela_GAM)
+valRho_Landela_Ea <- acf(resids_Landela_Ea , plot=FALSE)$acf[2]
+Ea_Landela_GAM <- bam(Ea_f_90, discrete=TRUE, nthreads=8, data = Landela_df_nona, rho = valRho_Landela_Ea)
+
+Ea_Landela_GAM1_vis <- getViz(Ea_Landela_GAM)
+
+WUE_Landela_year_plot <- plot_smooth(WUE_Landela_GAM, view = 'year', transform = exp)
+
+WUE_Landela_year_plot_gg <- ggplot(data=WUE_Landela_year_plot$fv, aes(x=year, y=fit))+
+  geom_line()+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
+  labs(x="Year", y="WUE gC/mm")+theme_minimal()
+
+##
+WUE_Landela_space_plot <- plot(sm(WUE_Landela_GAM1_vis, 3), trans = function(x){ 
+  WUE_Landela_GAM$family$linkinv(coef(WUE_Landela_GAM)[1] + x) 
+})
+WUE_Landela_space_plot_gg <- ggplot(data=(WUE_Landela_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name="WUE gC/mm")+
+  theme(element_blank(), axis.text = element_blank()) +coord_equal()
+##
+
+ETa_Landela_year_plot <- plot_smooth(ETa_Landela_GAM, view = 'year', transform = exp)
+
+##
+ETa_Landela_space_plot <- plot(sm(ETa_Landela_GAM1_vis, 3), trans = function(x){ 
+  ETa_Landela_GAM$family$linkinv(coef(ETa_Landela_GAM)[1] + x) 
+})
+ETa_Landela_space_plot_gg <- ggplot((data=ETa_Landela_space_plot$data$fit %>% na.omit()),
+                                    aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="ETa (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal() 
+
+ETa_Landela_yearxspace <- plotSlice(sm(ETa_Landela_GAM1_vis,5), fix=list("year"=seq(2013,2021)), trans = exp)+labs(title = "GPP") +
+  guides(fill=guide_colourbar("GPP"))
+
+ETa_Landela_yearxspace_plot <- ggplot()+geom_raster(data=ETa_Landela_yearxspace$data$fit, aes(x=x, y=y, fill=tz), alpha=0.8)+
+  scale_fill_viridis_c(labels=label_wrap(5))+theme_void()+
+  facet_wrap(~.fx.year)+geom_contour(data=ETa_Landela_yearxspace$data$fit, aes(x=x, y=y, z=tz, col='red'))+
+  labs(fill="ETa mm/day")+coord_equal()+guides(alpha="none", colour="none") 
+  
+
+##
+
+Ea_Landela_year_plot <- plot_smooth(Ea_Landela_GAM, view = 'year', transform = exp)
+
+##
+Ea_Landela_space_plot <- plot(sm(Ea_Landela_GAM1_vis, 3), trans = function(x){ 
+  Ea_Landela_GAM$family$linkinv(coef(Ea_Landela_GAM)[1] + x) 
+})
+Ea_Landela_space_plot_gg <- ggplot(data=(Ea_Landela_space_plot$data$fit %>%  na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="Ea (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank())  + coord_equal()
+##
+
+
+Ta_Landela_year_plot <- plot_smooth(Ta_Landela_GAM, view = 'year', transform = exp)
+
+
+##
+Ta_Landela_space_plot <- plot(sm(Ta_Landela_GAM1_vis, 3), trans = function(x){ 
+  Ea_Landela_GAM$family$linkinv(coef(Ea_Landela_GAM)[1] + x) 
+})
+Ta_Landela_space_plot_gg <- ggplot(data=(Ta_Landela_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+    scale_fill_viridis_c(name="Ta (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal()
+##
+
+GPP_Landela_plot_dat <- data.frame(var="GPP", value=GPP_Landela_year_plot$fv$fit,
+                                      ll=GPP_Landela_year_plot$fv$ll,
+                                      ul=GPP_Landela_year_plot$fv$ul,
+                                      year=GPP_Landela_year_plot$fv$year)
+
+WUE_Landela_plot_dat <- data.frame(var="WUE", value=WUE_Landela_year_plot$fv$fit,
+                                      ll=WUE_Landela_year_plot$fv$ll,
+                                      ul=WUE_Landela_year_plot$fv$ul,
+                                      year=WUE_Landela_year_plot$fv$year)
+
+E_Landela_plot_dat <- data.frame(var="E", value=Ea_Landela_year_plot$fv$fit,
+                                    ll=Ea_Landela_year_plot$fv$ll,
+                                    ul=Ea_Landela_year_plot$fv$ul,
+                                    year=Ea_Landela_year_plot$fv$year)
+T_Landela_plot_dat <- data.frame(var="T", value=Ta_Landela_year_plot$fv$fit,
+                                    ll=Ta_Landela_year_plot$fv$ll,
+                                    ul=Ta_Landela_year_plot$fv$ul,
+                                    year=Ta_Landela_year_plot$fv$year)
+ET_Landela_plot_dat <- data.frame(var="ET", value=ETa_Landela_year_plot$fv$fit,
+                                     ll=ETa_Landela_year_plot$fv$ll,
+                                     ul=ETa_Landela_year_plot$fv$ul,
+                                     year=ETa_Landela_year_plot$fv$year)
+All_Landela_plot_dat <- rbind(GPP_Landela_plot_dat, WUE_Landela_plot_dat,
+                                 E_Landela_plot_dat, T_Landela_plot_dat, ET_Landela_plot_dat)
+
+All_Landela_plot_dat$var <- as.factor(All_Landela_plot_dat$var)
+All_Landela_plot_dat$var <- factor(All_Landela_plot_dat$var, levels=(c("WUE", "GPP", "ET", "E", "T")))
+All_Landela_plot_dat$scheme <- "Landela"
+saveRDS(All_Landela_plot_dat, "All_Landela_year.rds")
+
+ET_Landela_plot_dat <- rbind(E_Landela_plot_dat, T_Landela_plot_dat, ET_Landela_plot_dat)
+
+ET_Landela_plot_dat$var <- as.factor(ET_Landela_plot_dat$var)
+ET_Landela_plot_dat$var <- factor(ET_Landela_plot_dat$var, levels=(c("ET", "E", "T")))
+
+ET_Landela_year_plot <- ggplot(data= ET_Landela_plot_dat, aes(x=year)) + 
+  geom_line(aes(y=value, col=var))+
+  geom_ribbon(aes(ymin=ll, ymax=ul, fill=var), alpha=0.2)+
+  scale_x_continuous(breaks=seq(2013, 2021, by=1))+
+  scale_color_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  scale_fill_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  theme(legend.title = element_blank())+
+  labs(x="Year", y="mm/day")+
+  theme_minimal() +theme(legend.title=element_blank())
+ET_Landela_year_plot
+
+##
+laya <- rbind(c(1,2,3))
+gs <- list(ETa_Landela_space_plot_gg, 
+           Ta_Landela_space_plot_gg, Ea_Landela_space_plot_gg)
+grid.arrange(grobs=gs, layout=laya, ncol=3)
+
+ETa_Landela_oneplot_dat <- data.frame(x=ETa_Landela_space_plot$data$fit$x,
+                                         y=ETa_Landela_space_plot$data$fit$y,
+                                         z=ETa_Landela_space_plot$data$fit$z,
+                                         var=c("Evapotranspiration")) %>% na.omit()
+
+Ta_Landela_oneplot_dat <- data.frame(x=Ta_Landela_space_plot$data$fit$x,
+                                        y=Ta_Landela_space_plot$data$fit$y,
+                                        z=Ta_Landela_space_plot$data$fit$z,
+                                        var=c("Transpiration")) %>% na.omit()
+
+Ea_Landela_oneplot_dat <- data.frame(x=Ea_Landela_space_plot$data$fit$x,
+                                        y=Ea_Landela_space_plot$data$fit$y,
+                                        z=Ea_Landela_space_plot$data$fit$z,
+                                        var=c("Evaporation")) %>% na.omit()
+
+ET_Landela_oneplot_dat <- rbind(ETa_Landela_oneplot_dat, Ta_Landela_oneplot_dat,
+                                   Ea_Landela_oneplot_dat)
+
+ET_Landela_oneplot_dat$var <- factor(ET_Landela_oneplot_dat$var,
+                                        levels=c("Evapotranspiration","Evaporation","Transpiration"))
+ET_Landela_oneplot <- ggplot(data=ET_Landela_oneplot_dat, aes(x=x, y=y))+geom_raster(aes(fill=z))+
+  geom_contour(aes(z=z), colour="black") + facet_grid(rows=vars(var)) + coord_equal() +
+  scale_fill_viridis_c(name="mm", limits=c(-0.4,0.4), oob = scales::squish)+theme(element_blank(), axis.text = element_blank())
+ET_Landela_oneplot
+
+GPP_Landela_space_plot_dat <- as.data.frame(GPP_Landela_space_plot$data$fit) %>% na.omit()
+GPP_Landela_space_plot_dat$var <- c("Gross Primary Productivity")
+
+GPP_Landela_space_plot_gg <- ggplot(data=GPP_Landela_space_plot_dat, aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
+  facet_grid(rows=vars(var)) +
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
+
+GPP_ET_Landela_space <- ggdraw() +
+  draw_plot(GPP_Landela_space_plot_gg, x=0.5, y=0,width = 0.5, height=1)+
+  draw_plot(ET_Landela_oneplot, x=0, y=0,width = 0.5, height=1)#+
+ggsave('Landela_GPP_ET_space.jpeg', width=9, height=7, dpi=900, plot=GPP_ET_Landela_space)
+
+
+
+##
+
+p <- ggdraw() +
+  draw_plot(WUE_Landela_year_plot_gg, x=0, y=0.7, width=0.87, height=0.3) +
+  draw_plot(GPP_Landela_year_plot_gg, x=0, y=0.4, width=0.87, height=0.3) +
+  #draw_plot(GPP_Landela_space_plot_gg, x=0.6, y=0.6,width = 0.4, height=0.2)+
+  #draw_plot(WUE_Landela_space_plot_gg, x=0.6, y=0.8,width = 0.4, height=0.2)+
+  draw_plot(ET_Landela_year_plot, x=0, y=0,width = 1, height=0.4) #+
+  #draw_plot(ET_Landela_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+
+title <- ggdraw() #+ draw_label("Landela", fontface='bold')
+Landela_GAMplot <- plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+Landela_GAMplot
+ggsave('Landela_GAMplot.jpeg', dpi=900, height=6, width=6, device='jpeg')
+
+grid.arrange(GPP_Landela_space_plot_gg,
+             ETa_Landela_space_plot_gg,
+             Ta_Landela_space_plot_gg,
+             Ea_Landela_space_plot_gg)
+
+######################## Linear GAMS ##################################
+WUE_f_90_lin <- log(WUE) ~ 
+  # smooth term for year
+  year + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+GPP_f_90_lin <- log(GPP) ~ 
+  # smooth term for year
+  year + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30) 
+
+ETa_f_90_lin <- log(ETa) ~ 
+  # smooth term for year
+  year + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ta_f_90_lin <- log(Ta) ~ 
+  # smooth term for year
+  year + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ea_f_90_lin <- log(Ea) ~ 
+  # smooth term for year
+  year + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+GPP_Landela_GAM1_lin <- bam(GPP_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+(exp(GPP_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+
+ETa_Landela_GAM1_lin <- bam(ETa_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+(exp(ETa_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+
+Ta_Landela_GAM1_lin <- bam(Ta_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+(exp(Ta_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+
+Ea_Landela_GAM1_lin <- bam(Ea_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+(exp(Ea_Landela_GAM1_lin$coefficients["year"]) - 1)*100

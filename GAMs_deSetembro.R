@@ -1,0 +1,439 @@
+library(mgcv)
+library(tidyverse)
+library(lubridate)
+library(mgcViz)
+library(viridis)
+library(gridExtra)
+library(ggpubr)
+library(cowplot)
+library(gratia)
+library(gganimate)
+library(gifski)
+library(zoo)
+library(ggsci)
+library(ggbreak)
+library(rgdal)
+library(scales)
+library(sf)
+library(itsadug)
+
+deSetembro_df <- readRDS("GAMM_data\\deSetembro_df.rds")
+
+# Columns 
+deSetembro_df$sensor <- as.factor(deSetembro_df$sensor)
+deSetembro_df <- deSetembro_df %>% 
+  mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
+
+
+# Clean data
+deSetembro_df_nona <- deSetembro_df[!is.na(deSetembro_df$GPP) & (deSetembro_df$GPP > 0) & 
+                                      !is.na(deSetembro_df$ETa) & (deSetembro_df$ETa > 0) &
+                                      !is.na(deSetembro_df$Ea) & (deSetembro_df$Ea > 0) & 
+                                      !is.na(deSetembro_df$Ta) & (deSetembro_df$Ta > 0) &
+                                      (deSetembro_df$year > 2012),]
+
+#deSetembro_df_nona <- deSetembro_df_nona %>% mutate(GPP = replace(GPP, GPP>15, NA))
+
+
+# List of formulae with different time lags for rainfall (30, 60, 90, 120 day)
+GPP_f_30 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_30, bs="cr", k=30) 
+
+GPP_f_60 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_60, bs="cr", k=30) 
+
+GPP_f_90 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30) 
+
+GPP_f_120 <- log(GPP) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y, k=50, bs='gp') +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_120, bs="cr", k=30)
+
+GPP_fs <- list(GPP_f_30, GPP_f_60, GPP_f_90, GPP_f_120)
+
+#Loop through different lags and test with anova
+GPP_deSetembro_GAM1 <- bam(GPP_f_30, discrete=TRUE, nthreads=8, data=deSetembro_df_nona)
+GPP_deSetembro_GAM2 <- bam(GPP_f_60, discrete=TRUE, nthreads=8, data=deSetembro_df_nona)
+GPP_deSetembro_GAM3 <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=deSetembro_df_nona)
+GPP_deSetembro_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=deSetembro_df_nona)
+
+anova(GPP_deSetembro_GAM1, GPP_deSetembro_GAM2, GPP_deSetembro_GAM3, GPP_deSetembro_GAM4, test='F')
+
+# Run GAMs for biomass (GPP)
+GPP_deSetembro_GAM <- GPP_deSetembro_GAM3
+
+resids_deSetembro_GPP <- residuals.gam(GPP_deSetembro_GAM)
+valRho_deSetembro_GPP <- acf(resids_deSetembro_GPP, plot=FALSE)$acf[2]
+GPP_deSetembro_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=deSetembro_df_nona, rho = valRho_deSetembro_GPP)
+GPP_deSetembro_GAM1_vis <- getViz(GPP_deSetembro_GAM)
+
+check(GPP_deSetembro_GAM1_vis)
+
+GPP_deSetembro_year_plot <- plot_smooth(GPP_deSetembro_GAM, view = 'year', transform = exp)
+
+##
+GPP_deSetembro_year_plot_gg <- ggplot(data=GPP_deSetembro_year_plot$fv, aes(x=year, y=fit))+
+  geom_line()+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
+  labs(x="Year", y=expression(paste("GPP gC/m"^2,paste("/day"))))+theme_minimal()
+
+GPP_deSetembro_space_plot <- plot(sm(GPP_deSetembro_GAM1_vis, 3), trans = function(x){ 
+  GPP_deSetembro_GAM$family$linkinv(coef(GPP_deSetembro_GAM)[1] + x) 
+}) 
+GPP_deSetembro_space_plot_gg <- ggplot(data=(GPP_deSetembro_space_plot$data$fit%>% na.omit()), aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
+
+##
+
+GPP_deSetembro_yearxspace <- plotSlice(sm(GPP_deSetembro_GAM1_vis,5), fix=list("year"=seq(2013,2021)), trans = exp)+labs(title = "GPP") +
+  guides(fill=guide_colourbar("GPP"))
+
+GPP_deSetembro_yearxspace_plot <- ggplot()+geom_raster(data=GPP_deSetembro_yearxspace$data$fit, aes(x=x, y=y, fill=tz), alpha=0.8)+
+  scale_fill_viridis_c(labels=label_wrap(5))+theme_void()+
+  facet_wrap(~.fx.year)+geom_contour(data=GPP_deSetembro_yearxspace$data$fit, aes(x=x, y=y, z=tz, col='red'))+
+  labs(fill="GPP (gC/m2)")+coord_equal()+guides(alpha="none", colour="none")
+
+GPP_deSetembro_yearxmonth <- plot(sm(GPP_deSetembro_GAM1_vis, 4), trans = function(x){ 
+  GPP_deSetembro_GAM$family$linkinv(coef(GPP_deSetembro_GAM)[1] + x) 
+}) 
+
+GPP_deSetembro_yearxmonth_plot <- ggplot(data=GPP_deSetembro_yearxmonth$data$fit, aes(x=y, y=x, fill=tz)) +
+  geom_raster()+
+  geom_contour(aes(x=y, y=x, z=tz, col="red"), show.legend = FALSE)+
+  scale_fill_viridis_c(labels=label_wrap(5))+
+  scale_y_continuous(breaks=seq(2013, 2021, by=1))+
+  scale_x_continuous(breaks=seq(1, 12, by=1))+
+  labs(y="Year", x="Month", fill="GPP (gC/m2)") + theme_bw()
+
+# Run GAMs for WUE, evapotranspiration (ETa), evaporation (Ea), transpiration (Ta) 
+# Stick with 90 day lag
+
+deSetembro_df_nona$WUE <- deSetembro_df_nona$GPP / deSetembro_df_nona$ETa
+
+WUE_f_90 <- log(WUE) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+ETa_f_90 <- log(ETa) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ta_f_90 <- log(Ta) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+Ea_f_90 <- log(Ea) ~ 
+  # smooth term for year
+  s(year, bs="cr", k=9) + 
+  # cyclic term for season
+  s(month, bs="cc", k=12) +  
+  # smooth term for spatial interaction
+  s(x,y) +                  
+  # seasonal within year
+  ti(month, year, bs = c("cc", "cr"), k = c(12,9)) +  
+  # space x time
+  ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
+     k = c(50,9)) +  
+  # random effect for ls
+  #s(sensor, bs = 're') + 
+  # rainfall lag
+  s(chirps_90, bs="cr", k=30)
+
+WUE_deSetembro_GAM <- bam(WUE_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona)
+resids_deSetembro_WUE <- residuals.gam(WUE_deSetembro_GAM)
+valRho_deSetembro_WUE <- acf(resids_deSetembro_WUE , plot=FALSE)$acf[2]
+WUE_deSetembro_GAM <- bam(WUE_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona, rho = valRho_deSetembro_WUE)
+
+WUE_deSetembro_GAM1_vis <- getViz(WUE_deSetembro_GAM)
+
+ETa_deSetembro_GAM <- bam(ETa_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona)
+resids_deSetembro_ETa <- residuals.gam(ETa_deSetembro_GAM)
+valRho_deSetembro_ETa <- acf(resids_deSetembro_ETa , plot=FALSE)$acf[2]
+ETa_deSetembro_GAM <- bam(ETa_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona, rho = valRho_deSetembro_ETa)
+
+ETa_deSetembro_GAM1_vis <- getViz(ETa_deSetembro_GAM)
+
+Ta_deSetembro_GAM <- bam(Ta_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona)
+resids_deSetembro_Ta <- residuals.gam(Ta_deSetembro_GAM)
+valRho_deSetembro_Ta <- acf(resids_deSetembro_Ta , plot=FALSE)$acf[2]
+Ta_deSetembro_GAM <- bam(Ta_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona, rho = valRho_deSetembro_Ta)
+
+Ta_deSetembro_GAM1_vis <- getViz(Ta_deSetembro_GAM)
+
+Ea_deSetembro_GAM <- bam(Ea_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona)
+resids_deSetembro_Ea <- residuals.gam(Ea_deSetembro_GAM)
+valRho_deSetembro_Ea <- acf(resids_deSetembro_Ea , plot=FALSE)$acf[2]
+Ea_deSetembro_GAM <- bam(Ea_f_90, discrete=TRUE, nthreads=8, data = deSetembro_df_nona, rho = valRho_deSetembro_Ea)
+
+Ea_deSetembro_GAM1_vis <- getViz(Ea_deSetembro_GAM)
+
+WUE_deSetembro_year_plot <- plot_smooth(WUE_deSetembro_GAM, view = 'year', transform = exp)
+
+WUE_deSetembro_year_plot_gg <- ggplot(data=WUE_deSetembro_year_plot$fv, aes(x=year, y=fit))+
+  geom_line()+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
+  labs(x="Year", y="WUE gC/mm")+theme_minimal()
+
+##
+WUE_deSetembro_space_plot <- plot(sm(WUE_deSetembro_GAM1_vis, 3), trans = function(x){ 
+  WUE_deSetembro_GAM$family$linkinv(coef(WUE_deSetembro_GAM)[1] + x) 
+})
+WUE_deSetembro_space_plot_gg <- ggplot(data=(WUE_deSetembro_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name="WUE gC/mm")+
+  theme(element_blank(), axis.text = element_blank()) +coord_equal()
+##
+
+ETa_deSetembro_year_plot <- plot_smooth(ETa_deSetembro_GAM, view = 'year', transform = exp)
+
+##
+ETa_deSetembro_space_plot <- plot(sm(ETa_deSetembro_GAM1_vis, 3), trans = function(x){ 
+  ETa_deSetembro_GAM$family$linkinv(coef(ETa_deSetembro_GAM)[1] + x) 
+})
+ETa_deSetembro_space_plot_gg <- ggplot((data=ETa_deSetembro_space_plot$data$fit %>% na.omit()),
+                                    aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="ETa (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal() 
+
+ETa_deSetembro_yearxspace <- plotSlice(sm(ETa_deSetembro_GAM1_vis,5), fix=list("year"=seq(2013,2021)), trans = exp)+labs(title = "GPP") +
+  guides(fill=guide_colourbar("GPP"))
+
+ETa_deSetembro_yearxspace_plot <- ggplot()+geom_raster(data=ETa_deSetembro_yearxspace$data$fit, aes(x=x, y=y, fill=tz), alpha=0.8)+
+  scale_fill_viridis_c(labels=label_wrap(5))+theme_void()+
+  facet_wrap(~.fx.year)+geom_contour(data=ETa_deSetembro_yearxspace$data$fit, aes(x=x, y=y, z=tz, col='red'))+
+  labs(fill="ETa mm/day")+coord_equal()+guides(alpha="none", colour="none") 
+  
+
+##
+
+Ea_deSetembro_year_plot <- plot_smooth(Ea_deSetembro_GAM, view = 'year', transform = exp)
+
+##
+Ea_deSetembro_space_plot <- plot(sm(Ea_deSetembro_GAM1_vis, 3), trans = function(x){ 
+  Ea_deSetembro_GAM$family$linkinv(coef(Ea_deSetembro_GAM)[1] + x) 
+})
+Ea_deSetembro_space_plot_gg <- ggplot(data=(Ea_deSetembro_space_plot$data$fit %>%  na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="Ea (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank())  + coord_equal()
+##
+
+
+Ta_deSetembro_year_plot <- plot_smooth(Ta_deSetembro_GAM, view = 'year', transform = exp)
+
+
+##
+Ta_deSetembro_space_plot <- plot(sm(Ta_deSetembro_GAM1_vis, 3), trans = function(x){ 
+  Ea_deSetembro_GAM$family$linkinv(coef(Ea_deSetembro_GAM)[1] + x) 
+})
+Ta_deSetembro_space_plot_gg <- ggplot(data=(Ta_deSetembro_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+    scale_fill_viridis_c(name="Ta (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal()
+##
+
+GPP_deSetembro_plot_dat <- data.frame(var="GPP", value=GPP_deSetembro_year_plot$fv$fit,
+                                      ll=GPP_deSetembro_year_plot$fv$ll,
+                                      ul=GPP_deSetembro_year_plot$fv$ul,
+                                      year=GPP_deSetembro_year_plot$fv$year)
+
+WUE_deSetembro_plot_dat <- data.frame(var="WUE", value=WUE_deSetembro_year_plot$fv$fit,
+                                      ll=WUE_deSetembro_year_plot$fv$ll,
+                                      ul=WUE_deSetembro_year_plot$fv$ul,
+                                      year=WUE_deSetembro_year_plot$fv$year)
+
+E_deSetembro_plot_dat <- data.frame(var="E", value=Ea_deSetembro_year_plot$fv$fit,
+                                    ll=Ea_deSetembro_year_plot$fv$ll,
+                                    ul=Ea_deSetembro_year_plot$fv$ul,
+                                    year=Ea_deSetembro_year_plot$fv$year)
+T_deSetembro_plot_dat <- data.frame(var="T", value=Ta_deSetembro_year_plot$fv$fit,
+                                    ll=Ta_deSetembro_year_plot$fv$ll,
+                                    ul=Ta_deSetembro_year_plot$fv$ul,
+                                    year=Ta_deSetembro_year_plot$fv$year)
+ET_deSetembro_plot_dat <- data.frame(var="ET", value=ETa_deSetembro_year_plot$fv$fit,
+                                     ll=ETa_deSetembro_year_plot$fv$ll,
+                                     ul=ETa_deSetembro_year_plot$fv$ul,
+                                     year=ETa_deSetembro_year_plot$fv$year)
+All_deSetembro_plot_dat <- rbind(GPP_deSetembro_plot_dat, WUE_deSetembro_plot_dat,
+                                 E_deSetembro_plot_dat, T_deSetembro_plot_dat, ET_deSetembro_plot_dat)
+
+All_deSetembro_plot_dat$var <- as.factor(All_deSetembro_plot_dat$var)
+All_deSetembro_plot_dat$var <- factor(All_deSetembro_plot_dat$var, levels=(c("WUE", "GPP", "ET", "E", "T")))
+All_deSetembro_plot_dat$scheme <- "deSetembro"
+saveRDS(All_deSetembro_plot_dat, "All_deSetembro_year.rds")
+
+ET_deSetembro_plot_dat <- rbind(E_deSetembro_plot_dat, T_deSetembro_plot_dat, ET_deSetembro_plot_dat)
+
+ET_deSetembro_plot_dat$var <- as.factor(ET_deSetembro_plot_dat$var)
+ET_deSetembro_plot_dat$var <- factor(ET_deSetembro_plot_dat$var, levels=(c("ET", "E", "T")))
+
+ET_deSetembro_year_plot <- ggplot(data= ET_deSetembro_plot_dat, aes(x=year)) + 
+  geom_line(aes(y=value, col=var))+
+  geom_ribbon(aes(ymin=ll, ymax=ul, fill=var), alpha=0.2)+
+  scale_x_continuous(breaks=seq(2013, 2021, by=1))+
+  scale_color_manual(values=c("blue", "red", "darkgreen"))+
+  scale_fill_manual(values=c("blue", "red", "darkgreen"))+
+  theme(legend.title = element_blank())+
+  labs(x="Year", y="mm/day")+
+  theme_minimal() +theme(legend.title=element_blank())
+ET_deSetembro_year_plot
+
+##
+laya <- rbind(c(1,2,3))
+gs <- list(ETa_deSetembro_space_plot_gg, 
+           Ta_deSetembro_space_plot_gg, Ea_deSetembro_space_plot_gg)
+grid.arrange(grobs=gs, layout=laya, ncol=3)
+
+ETa_deSetembro_oneplot_dat <- data.frame(x=ETa_deSetembro_space_plot$data$fit$x,
+                                         y=ETa_deSetembro_space_plot$data$fit$y,
+                                         z=ETa_deSetembro_space_plot$data$fit$z,
+                                         var=c("Evapotranspiration")) %>% na.omit()
+
+Ta_deSetembro_oneplot_dat <- data.frame(x=Ta_deSetembro_space_plot$data$fit$x,
+                                        y=Ta_deSetembro_space_plot$data$fit$y,
+                                        z=Ta_deSetembro_space_plot$data$fit$z,
+                                        var=c("Transpiration")) %>% na.omit()
+
+Ea_deSetembro_oneplot_dat <- data.frame(x=Ea_deSetembro_space_plot$data$fit$x,
+                                        y=Ea_deSetembro_space_plot$data$fit$y,
+                                        z=Ea_deSetembro_space_plot$data$fit$z,
+                                        var=c("Evaporation")) %>% na.omit()
+
+ET_deSetembro_oneplot_dat <- rbind(ETa_deSetembro_oneplot_dat, Ta_deSetembro_oneplot_dat,
+                                   Ea_deSetembro_oneplot_dat)
+
+ET_deSetembro_oneplot_dat$var <- factor(ET_deSetembro_oneplot_dat$var,
+                                        levels=c("Evapotranspiration","Evaporation","Transpiration"))
+ET_deSetembro_oneplot <- ggplot(data=ET_deSetembro_oneplot_dat, aes(x=x, y=y))+geom_raster(aes(fill=z))+
+  geom_contour(aes(z=z), colour="black") + facet_grid(rows=vars(var)) + coord_equal() +
+  scale_fill_viridis_c(name="mm", limits=c(-0.4,0.4), oob = scales::squish)+theme(element_blank(), axis.text = element_blank())
+ET_deSetembro_oneplot
+
+GPP_deSetembro_space_plot_dat <- as.data.frame(GPP_deSetembro_space_plot$data$fit) %>% na.omit()
+GPP_deSetembro_space_plot_dat$var <- c("Gross Primary Productivity")
+
+GPP_deSetembro_space_plot_gg <- ggplot(data=GPP_deSetembro_space_plot_dat, aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
+  facet_grid(rows=vars(var)) +
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
+
+GPP_ET_deSetembro_space <- ggdraw() +
+  draw_plot(GPP_deSetembro_space_plot_gg, x=0.5, y=0.3,width = 0.5, height=0.35)+
+  draw_plot(ET_deSetembro_oneplot, x=0, y=0,width = 0.5, height=1)#+
+ggsave('deSetembro_GPP_ET_space.jpeg', width=9, height=9, dpi=900, plot=GPP_ET_deSetembro_space)
+
+
+
+##
+
+p <- ggdraw() +
+  draw_plot(WUE_deSetembro_year_plot_gg, x=0, y=0.8, width=0.9, height=0.2) +
+  draw_plot(GPP_deSetembro_year_plot_gg, x=0, y=0.6, width=0.9, height=0.2) +
+  #draw_plot(GPP_deSetembro_space_plot_gg, x=0.6, y=0.6,width = 0.4, height=0.2)+
+  #draw_plot(WUE_deSetembro_space_plot_gg, x=0.6, y=0.8,width = 0.4, height=0.2)+
+  draw_plot(ET_deSetembro_year_plot, x=0, y=0,width = 1, height=0.6)#+
+#draw_plot(ET_deSetembro_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+
+title <- ggdraw() #+ draw_label("deSetembro", fontface='bold')
+deSetembro_GAMplot <- plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+deSetembro_GAMplot
+ggsave('deSetembro_GAMplot.jpeg', dpi=900, height=10, width=10, device='jpeg')
+
+grid.arrange(GPP_deSetembro_space_plot_gg,
+             ETa_deSetembro_space_plot_gg,
+             Ta_deSetembro_space_plot_gg,
+             Ea_deSetembro_space_plot_gg)
+

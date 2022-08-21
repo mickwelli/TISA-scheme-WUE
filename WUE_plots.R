@@ -1,0 +1,84 @@
+library(tidyverse)
+library(cowplot)
+
+Mkoba_dat <- readRDS('All_Mkoba_year.rds')
+Silalatshani_dat <- readRDS('All_Silalatshani_year.rds')
+Kiwere_dat <- readRDS('All_Kiwere_year.rds')
+Magozi_dat <- readRDS('All_Magozi_year.rds')
+deSetembro_dat <- readRDS('All_deSetembro_year.rds')
+Khanimambo_dat <- readRDS('All_Khanimambo_year.rds')
+
+WUE_year_dat <- rbind(Mkoba_dat, Silalatshani_dat,
+                      Kiwere_dat, Magozi_dat,
+                      deSetembro_dat, Khanimambo_dat)
+WUE_year_dat$scheme <- as.factor(WUE_year_dat$scheme)
+levels(WUE_year_dat$scheme)[levels(WUE_year_dat$scheme)=="deSetembro"] <- "25 de Setembro"
+summary(WUE_year_dat)
+WUE_year_dat$country <- if_else(WUE_year_dat$scheme == "Silalatshani", "Zimbabwe",
+                                if_else(WUE_year_dat$scheme == "Mkoba", "Zimbabwe", 
+                                        if_else(WUE_year_dat$scheme == "Kiwere", "Tanzania",
+                                                if_else(WUE_year_dat$scheme == "Magozi", "Tanzania", 
+                                                        "Mozambique"))))
+
+WUE_year_dat
+
+ET_year_dat <- WUE_year_dat %>% filter(var==c("ET", "T", "E"))
+
+ET_year_plot <- ggplot(data= ET_year_dat, aes(x=year)) + 
+  geom_line(aes(y=value, col=var))+
+  geom_ribbon(aes(ymin=ll, ymax=ul, fill=var), alpha=0.2)+
+  scale_x_continuous(breaks=seq(2013, 2021, by=2))+
+  scale_color_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  scale_fill_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  theme(legend.title = element_blank())+
+  labs(x="Year", y="mm/day")+
+  facet_wrap(~scheme, ncol=3, scales="free_y") +
+  theme_minimal() +theme(legend.title=element_blank()) +
+  ggtitle('Evaporation, Transpiration & Evapotranspiration')
+ET_year_plot
+
+WUE_year_dat_var <- WUE_year_dat %>% filter(var==c("WUE"))
+
+WUE_year_plot <- ggplot(data= WUE_year_dat_var, aes(x=year)) + 
+  geom_line(aes(y=value))+
+  geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+
+  scale_x_continuous(breaks=seq(2013, 2021, by=2))+
+  theme(legend.title = element_blank())+
+  labs(x="", y=expression(paste("gC/mm")))+
+  facet_wrap(~scheme, ncol=3) +
+  theme_minimal() + theme(legend.title=element_blank()) +
+  scale_color_manual(values=c("black"))
+WUE_year_plot
+ggsave('WUE_allscheme_year_plot.jpg', width=7, height=6, dpi=900, plot=WUE_year_plot)
+
+GPP_year_dat <- WUE_year_dat %>% filter(var==c("GPP"))
+
+GPP_year_plot <- ggplot(data= GPP_year_dat, aes(x=year)) + 
+  geom_line(aes(y=value, col="GPP"))+
+  geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+
+  scale_x_continuous(breaks=seq(2013, 2021, by=2))+
+  theme(legend.title = element_blank())+
+  labs(x="", y=expression(paste("gC/m"^2,paste("/day"))))+
+  facet_wrap(~scheme, ncol=3, scales="free_y") +
+  theme_minimal() +theme(legend.title=element_blank()) +
+  scale_color_manual(values=c("black")) + 
+  scale_fill_manual(values=c("black")) + ggtitle('Gross Primary Productivity')
+GPP_year_plot
+
+
+GPP_ET_allschemeplot <- plot_grid(GPP_year_plot, ET_year_plot, ncol=1)
+ggsave('GPP_ET_allscheme_year_plot.jpg', width=7, height=6, dpi=900, plot=GPP_ET_allschemeplot)
+
+############## Scheme plots ###############################
+load('Plots/deSetembro_GAMplot.rdata')
+load('Plots/Khanimambo_GAMplot.rdata')
+load('Plots/Kiwere_GAMplot.rdata')
+load('Plots/Magozi_GAMplot.rdata')
+load('Plots/Mkoba_GAMplot.rdata')
+load('Plots/Silalatshani_GAMplot.rdata')
+
+all_plots <- plot_grid(deSetembro_GAMplot, Kiwere_GAMplot,
+          Mkoba_GAMplot, Khanimambo_GAMplot,
+          Magozi_GAMplot, Silalatshani_GAMplot, ncol=3)
+all_plots
+ggsave('Plots/all_schemes.jpg', width=14, height=10, dpi=900, plot=all_plots)
