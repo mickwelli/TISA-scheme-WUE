@@ -1,3 +1,18 @@
+---
+title: "GAMs 25 de Setembro"
+author: Michael Wellington, Petra Kuhnert, Roger Lawes, Luigi Renzullo, Jamie Pittock,
+  Peter Ramshaw, Martin Moyo, Emmanuel Kimaro, Miguel Tafula, Andre van Rooyen
+date: '2022-08-22'
+output:
+  html_document:
+    df_print: paged
+vignette: |
+  %\VignetteIndexEntry{GAMs 25 de Setembro} %\VignetteEncoding{UTF-8} %\Vi
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
 library(mgcv)
 library(tidyverse)
 library(lubridate)
@@ -16,11 +31,15 @@ library(rgdal)
 library(scales)
 library(sf)
 library(itsadug)
+```
 
-deSetembro_df <- readRDS("GAMM_data\\deSetembro_df.rds")
+## Bring in and clean data
 
-# Columns 
-deSetembro_df$sensor <- as.factor(deSetembro_df$sensor)
+We are using pre-prepared data from Landsat-7 and Landsat-8. We will select observations > 0 for GPP, E, T, and ET, and also filter to years greater than 2012. This is because Landsat-8 is required to give sufficient temporal resolution for trend analysis, and was launched in 2013.
+
+```{r data, include=FALSE}
+deSetembro_df <- readRDS("data\\GAMM_data\\deSetembro_df.rds")
+
 deSetembro_df <- deSetembro_df %>% 
   mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
 
@@ -31,10 +50,13 @@ deSetembro_df_nona <- deSetembro_df[!is.na(deSetembro_df$GPP) & (deSetembro_df$G
                                       !is.na(deSetembro_df$Ea) & (deSetembro_df$Ea > 0) & 
                                       !is.na(deSetembro_df$Ta) & (deSetembro_df$Ta > 0) &
                                       (deSetembro_df$year > 2012),]
+```
 
-#deSetembro_df_nona <- deSetembro_df_nona %>% mutate(GPP = replace(GPP, GPP>15, NA))
+## Define GAM structure
 
+Next, we define GAM formulae with different lags for rainfall. We will loop through these GAMs to select the best fit. We ended up choosing a 90 day fit as it delivered the lowest residual deviance across many, but not all, schemes. We kept this lag constant 
 
+```{r GAMs}
 # List of formulae with different time lags for rainfall (30, 60, 90, 120 day)
 GPP_f_30 <- log(GPP) ~ 
   # smooth term for year
@@ -48,8 +70,6 @@ GPP_f_30 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_30, bs="cr", k=30) 
 
@@ -65,8 +85,6 @@ GPP_f_60 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_60, bs="cr", k=30) 
 
@@ -82,8 +100,6 @@ GPP_f_90 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30) 
 
@@ -99,8 +115,6 @@ GPP_f_120 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_120, bs="cr", k=30)
 
@@ -113,6 +127,13 @@ GPP_deSetembro_GAM3 <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=deSetembro_
 GPP_deSetembro_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=deSetembro_df_nona)
 
 anova(GPP_deSetembro_GAM1, GPP_deSetembro_GAM2, GPP_deSetembro_GAM3, GPP_deSetembro_GAM4, test='F')
+```
+
+## Run GAMs
+
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+
+``` {r runGAMSGPP, include=FALSE, echo=FALSE}
 
 # Run GAMs for biomass (GPP)
 GPP_deSetembro_GAM <- GPP_deSetembro_GAM3
@@ -353,7 +374,6 @@ All_deSetembro_plot_dat <- rbind(GPP_deSetembro_plot_dat, WUE_deSetembro_plot_da
 All_deSetembro_plot_dat$var <- as.factor(All_deSetembro_plot_dat$var)
 All_deSetembro_plot_dat$var <- factor(All_deSetembro_plot_dat$var, levels=(c("WUE", "GPP", "ET", "E", "T")))
 All_deSetembro_plot_dat$scheme <- "deSetembro"
-saveRDS(All_deSetembro_plot_dat, "All_deSetembro_year.rds")
 
 ET_deSetembro_plot_dat <- rbind(E_deSetembro_plot_dat, T_deSetembro_plot_dat, ET_deSetembro_plot_dat)
 
@@ -413,7 +433,7 @@ GPP_deSetembro_space_plot_gg <- ggplot(data=GPP_deSetembro_space_plot_dat, aes(x
 GPP_ET_deSetembro_space <- ggdraw() +
   draw_plot(GPP_deSetembro_space_plot_gg, x=0.5, y=0.3,width = 0.5, height=0.35)+
   draw_plot(ET_deSetembro_oneplot, x=0, y=0,width = 0.5, height=1)#+
-ggsave('deSetembro_GPP_ET_space.jpeg', width=9, height=9, dpi=900, plot=GPP_ET_deSetembro_space)
+
 
 
 
@@ -426,14 +446,14 @@ p <- ggdraw() +
   #draw_plot(WUE_deSetembro_space_plot_gg, x=0.6, y=0.8,width = 0.4, height=0.2)+
   draw_plot(ET_deSetembro_year_plot, x=0, y=0,width = 1, height=0.6)#+
 #draw_plot(ET_deSetembro_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+```
 
-title <- ggdraw() #+ draw_label("deSetembro", fontface='bold')
-deSetembro_GAMplot <- plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+## Plots
+
+Finally, we can plot the annual and spatial trend results.
+```{r plots}
+deSetembro_GAMplot <- plot_grid(p, ncol=1, rel_heights=c(0.1, 1))
 deSetembro_GAMplot
-ggsave('deSetembro_GAMplot.jpeg', dpi=900, height=10, width=10, device='jpeg')
+GPP_ET_deSetembro_space
 
-grid.arrange(GPP_deSetembro_space_plot_gg,
-             ETa_deSetembro_space_plot_gg,
-             Ta_deSetembro_space_plot_gg,
-             Ea_deSetembro_space_plot_gg)
-
+```

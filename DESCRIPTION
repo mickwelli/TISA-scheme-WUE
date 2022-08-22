@@ -1,0 +1,40 @@
+Package: UkraineCrops
+Type: Package
+Title: Ukraine-crop Analysis
+Version: 0.9.0
+Author: Michael Wellington
+Maintainer: Michael Wellington <Michael.Wellington@anu.edu.au>
+Description: This package contains all data and code used to analyse Ukraine grain supply.
+Encoding: UTF-8
+Date: 2022-08-03
+Authors@R: c(
+             person("Michael", "Wellington", email = "Michael.Wellington@anu.edu.au", role = c("aut", "cre")), 
+             person("Petra", "Kuhnert", email = "Petra.Kuhnert@data61.csiro.au", role = c("ctb", "ths")), 
+             person("Roger", "Lawes", email = "Roger.Lawes@csiro.au", role = c("ths")) 
+           )
+Depends:
+    R (>= 4.1.0),
+    ggplot2,
+    ggsci,
+    gratia,
+    gridExtra,
+    gstat,
+    itsadug,
+    maps,
+    mgcViz,
+    mgcv,
+    rgdal,
+    scales,
+    sf,
+    stringr,
+    tidyverse
+License: GPL-3
+LazyLoad: TRUE
+LazyData: TRUE
+RoxygenNote: 7.2.1
+Suggests: 
+    knitr,
+    rmarkdown,
+    markdown
+VignetteBuilder: knitr
+URL: https://mickwelli.github.io/Ukraine-crops/

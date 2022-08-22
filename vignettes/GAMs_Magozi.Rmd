@@ -1,3 +1,18 @@
+---
+title: "GAMs Magozi"
+author: Michael Wellington, Petra Kuhnert, Roger Lawes, Luigi Renzullo, Jamie Pittock,
+  Peter Ramshaw, Martin Moyo, Emmanuel Kimaro, Miguel Tafula, Andre van Rooyen
+date: '2022-08-22'
+output:
+  html_document:
+    df_print: paged
+vignette: |
+  %\VignetteIndexEntry{GAMs Magozi} %\VignetteEncoding{UTF-8} %\Vi
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
 library(mgcv)
 library(tidyverse)
 library(lubridate)
@@ -16,25 +31,32 @@ library(rgdal)
 library(scales)
 library(sf)
 library(itsadug)
+```
 
-Magozi_df <- readRDS("GAMM_data\\Magozi_df.rds")
+## Bring in and clean data
 
-# Columns 
-Magozi_df$sensor <- as.factor(Magozi_df$sensor)
+We are using pre-prepared data from Landsat-7 and Landsat-8. We will select observations > 0 for GPP, E, T, and ET, and also filter to years greater than 2012. This is because Landsat-8 is required to give sufficient temporal resolution for trend analysis, and was launched in 2013.
+
+```{r data, include=FALSE}
+Magozi_df <- readRDS("data\\GAMM_data\\Magozi_df.rds")
+
 Magozi_df <- Magozi_df %>% 
   mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
 
 
 # Clean data
 Magozi_df_nona <- Magozi_df[!is.na(Magozi_df$GPP) & (Magozi_df$GPP > 0) & 
-                                !is.na(Magozi_df$ETa) & (Magozi_df$ETa > 0) &
-                                !is.na(Magozi_df$Ea) & (Magozi_df$Ea > 0) & 
-                                !is.na(Magozi_df$Ta) & (Magozi_df$Ta > 0) &
-                                (Magozi_df$year > 2012),]
+                                      !is.na(Magozi_df$ETa) & (Magozi_df$ETa > 0) &
+                                      !is.na(Magozi_df$Ea) & (Magozi_df$Ea > 0) & 
+                                      !is.na(Magozi_df$Ta) & (Magozi_df$Ta > 0) &
+                                      (Magozi_df$year > 2012),]
+```
 
-#Magozi_df_nona <- Magozi_df_nona %>% mutate(GPP = replace(GPP, GPP>15, NA))
+## Define GAM structure
 
+Next, we define GAM formulae with different lags for rainfall. We will loop through these GAMs to select the best fit. We ended up choosing a 90 day fit as it delivered the lowest residual deviance across many, but not all, schemes. We kept this lag constant 
 
+```{r GAMs}
 # List of formulae with different time lags for rainfall (30, 60, 90, 120 day)
 GPP_f_30 <- log(GPP) ~ 
   # smooth term for year
@@ -48,8 +70,6 @@ GPP_f_30 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_30, bs="cr", k=30) 
 
@@ -65,8 +85,6 @@ GPP_f_60 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_60, bs="cr", k=30) 
 
@@ -82,8 +100,6 @@ GPP_f_90 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30) 
 
@@ -99,8 +115,6 @@ GPP_f_120 <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_120, bs="cr", k=30)
 
@@ -113,6 +127,13 @@ GPP_Magozi_GAM3 <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Magozi_df_nona)
 GPP_Magozi_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=Magozi_df_nona)
 
 anova(GPP_Magozi_GAM1, GPP_Magozi_GAM2, GPP_Magozi_GAM3, GPP_Magozi_GAM4, test='F')
+```
+
+## Run GAMs
+
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+
+``` {r runGAMSGPP, include=FALSE, echo=FALSE}
 
 # Run GAMs for biomass (GPP)
 GPP_Magozi_GAM <- GPP_Magozi_GAM3
@@ -128,17 +149,15 @@ GPP_Magozi_year_plot <- plot_smooth(GPP_Magozi_GAM, view = 'year', transform = e
 
 ##
 GPP_Magozi_year_plot_gg <- ggplot(data=GPP_Magozi_year_plot$fv, aes(x=year, y=fit))+
-  geom_line(aes(col="GPP"))+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
-  labs(x="Year", y=expression(paste("gC/m"^2,paste("/day"))))+theme_minimal() +
-  scale_color_manual(values=c("black")) + theme(legend.title=element_blank())
+  geom_line()+geom_ribbon(aes(ymin=ll, ymax=ul), alpha=0.2)+scale_x_continuous(breaks=seq(2013,2021,1))+
+  labs(x="Year", y=expression(paste("GPP gC/m"^2,paste("/day"))))+theme_minimal()
 
 GPP_Magozi_space_plot <- plot(sm(GPP_Magozi_GAM1_vis, 3), trans = function(x){ 
   GPP_Magozi_GAM$family$linkinv(coef(GPP_Magozi_GAM)[1] + x) 
-})
-GPP_Magozi_space_plot_gg <- ggplot(data=GPP_Magozi_space_plot$data$fit, aes(x=x, y=y, z=tz))+
+}) 
+GPP_Magozi_space_plot_gg <- ggplot(data=(GPP_Magozi_space_plot$data$fit%>% na.omit()), aes(x=x, y=y, z=tz))+
   geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
-  theme(element_blank(), axis.text = element_blank()) +coord_equal()
-
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
 
 ##
 
@@ -273,7 +292,7 @@ WUE_Magozi_year_plot_gg <- ggplot(data=WUE_Magozi_year_plot$fv, aes(x=year, y=fi
 WUE_Magozi_space_plot <- plot(sm(WUE_Magozi_GAM1_vis, 3), trans = function(x){ 
   WUE_Magozi_GAM$family$linkinv(coef(WUE_Magozi_GAM)[1] + x) 
 })
-WUE_Magozi_space_plot_gg <- ggplot(data=WUE_Magozi_space_plot$data$fit, aes(x=x, y=y, z=tz))+
+WUE_Magozi_space_plot_gg <- ggplot(data=(WUE_Magozi_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=tz))+
   geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name="WUE gC/mm")+
   theme(element_blank(), axis.text = element_blank()) +coord_equal()
 ##
@@ -284,9 +303,11 @@ ETa_Magozi_year_plot <- plot_smooth(ETa_Magozi_GAM, view = 'year', transform = e
 ETa_Magozi_space_plot <- plot(sm(ETa_Magozi_GAM1_vis, 3), trans = function(x){ 
   ETa_Magozi_GAM$family$linkinv(coef(ETa_Magozi_GAM)[1] + x) 
 })
-ETa_Magozi_space_plot_gg <- ggplot(data=ETa_Magozi_space_plot$data$fit, aes(x=x, y=y, z=z))+
-  geom_raster(aes(fill=z)) + geom_contour(colour="black") + scale_fill_viridis_c(name="ETa (mm)")+
-  theme(element_blank()) + coord_equal()
+ETa_Magozi_space_plot_gg <- ggplot((data=ETa_Magozi_space_plot$data$fit %>% na.omit()),
+                                    aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="ETa (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal() 
 
 ETa_Magozi_yearxspace <- plotSlice(sm(ETa_Magozi_GAM1_vis,5), fix=list("year"=seq(2013,2021)), trans = exp)+labs(title = "GPP") +
   guides(fill=guide_colourbar("GPP"))
@@ -294,7 +315,8 @@ ETa_Magozi_yearxspace <- plotSlice(sm(ETa_Magozi_GAM1_vis,5), fix=list("year"=se
 ETa_Magozi_yearxspace_plot <- ggplot()+geom_raster(data=ETa_Magozi_yearxspace$data$fit, aes(x=x, y=y, fill=tz), alpha=0.8)+
   scale_fill_viridis_c(labels=label_wrap(5))+theme_void()+
   facet_wrap(~.fx.year)+geom_contour(data=ETa_Magozi_yearxspace$data$fit, aes(x=x, y=y, z=tz, col='red'))+
-  labs(fill="ETa mm/day")+coord_equal()+guides(alpha="none", colour="none")
+  labs(fill="ETa mm/day")+coord_equal()+guides(alpha="none", colour="none") 
+  
 
 ##
 
@@ -304,9 +326,10 @@ Ea_Magozi_year_plot <- plot_smooth(Ea_Magozi_GAM, view = 'year', transform = exp
 Ea_Magozi_space_plot <- plot(sm(Ea_Magozi_GAM1_vis, 3), trans = function(x){ 
   Ea_Magozi_GAM$family$linkinv(coef(Ea_Magozi_GAM)[1] + x) 
 })
-Ea_Magozi_space_plot_gg <- ggplot(data=Ea_Magozi_space_plot$data$fit, aes(x=x, y=y, z=z))+
-  geom_raster(aes(fill=z)) + geom_contour(colour="black") + scale_fill_viridis_c(name="Ea (mm)")+
-  theme(element_blank()) + coord_equal()
+Ea_Magozi_space_plot_gg <- ggplot(data=(Ea_Magozi_space_plot$data$fit %>%  na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+  scale_fill_viridis_c(name="Ea (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank())  + coord_equal()
 ##
 
 
@@ -317,40 +340,40 @@ Ta_Magozi_year_plot <- plot_smooth(Ta_Magozi_GAM, view = 'year', transform = exp
 Ta_Magozi_space_plot <- plot(sm(Ta_Magozi_GAM1_vis, 3), trans = function(x){ 
   Ea_Magozi_GAM$family$linkinv(coef(Ea_Magozi_GAM)[1] + x) 
 })
-Ta_Magozi_space_plot_gg <- ggplot(data=Ta_Magozi_space_plot$data$fit, aes(x=x, y=y, z=z))+
-  geom_raster(aes(fill=z)) + geom_contour(colour="black") + scale_fill_viridis_c(name="Ta (mm)")+
-  theme(element_blank()) + coord_equal()
+Ta_Magozi_space_plot_gg <- ggplot(data=(Ta_Magozi_space_plot$data$fit %>% na.omit()), aes(x=x, y=y, z=z))+
+  geom_raster(aes(fill=z)) + geom_contour(colour="black") + 
+    scale_fill_viridis_c(name="Ta (mm)", limits=c(-0.4,0.4), oob = scales::squish)+
+  theme(element_blank(), axis.text = element_blank()) + coord_equal()
 ##
 
 GPP_Magozi_plot_dat <- data.frame(var="GPP", value=GPP_Magozi_year_plot$fv$fit,
-                                ll=GPP_Magozi_year_plot$fv$ll,
-                                ul=GPP_Magozi_year_plot$fv$ul,
-                                year=GPP_Magozi_year_plot$fv$year)
+                                      ll=GPP_Magozi_year_plot$fv$ll,
+                                      ul=GPP_Magozi_year_plot$fv$ul,
+                                      year=GPP_Magozi_year_plot$fv$year)
 
 WUE_Magozi_plot_dat <- data.frame(var="WUE", value=WUE_Magozi_year_plot$fv$fit,
-                                  ll=WUE_Magozi_year_plot$fv$ll,
-                                  ul=WUE_Magozi_year_plot$fv$ul,
-                                  year=WUE_Magozi_year_plot$fv$year)
+                                      ll=WUE_Magozi_year_plot$fv$ll,
+                                      ul=WUE_Magozi_year_plot$fv$ul,
+                                      year=WUE_Magozi_year_plot$fv$year)
 
 E_Magozi_plot_dat <- data.frame(var="E", value=Ea_Magozi_year_plot$fv$fit,
-                                 ll=Ea_Magozi_year_plot$fv$ll,
-                                 ul=Ea_Magozi_year_plot$fv$ul,
-                                 year=Ea_Magozi_year_plot$fv$year)
+                                    ll=Ea_Magozi_year_plot$fv$ll,
+                                    ul=Ea_Magozi_year_plot$fv$ul,
+                                    year=Ea_Magozi_year_plot$fv$year)
 T_Magozi_plot_dat <- data.frame(var="T", value=Ta_Magozi_year_plot$fv$fit,
-                                ll=Ta_Magozi_year_plot$fv$ll,
-                                ul=Ta_Magozi_year_plot$fv$ul,
-                                year=Ta_Magozi_year_plot$fv$year)
+                                    ll=Ta_Magozi_year_plot$fv$ll,
+                                    ul=Ta_Magozi_year_plot$fv$ul,
+                                    year=Ta_Magozi_year_plot$fv$year)
 ET_Magozi_plot_dat <- data.frame(var="ET", value=ETa_Magozi_year_plot$fv$fit,
-                                 ll=ETa_Magozi_year_plot$fv$ll,
-                                 ul=ETa_Magozi_year_plot$fv$ul,
-                                 year=ETa_Magozi_year_plot$fv$year)
+                                     ll=ETa_Magozi_year_plot$fv$ll,
+                                     ul=ETa_Magozi_year_plot$fv$ul,
+                                     year=ETa_Magozi_year_plot$fv$year)
 All_Magozi_plot_dat <- rbind(GPP_Magozi_plot_dat, WUE_Magozi_plot_dat,
-                             E_Magozi_plot_dat, T_Magozi_plot_dat, ET_Magozi_plot_dat)
+                                 E_Magozi_plot_dat, T_Magozi_plot_dat, ET_Magozi_plot_dat)
 
 All_Magozi_plot_dat$var <- as.factor(All_Magozi_plot_dat$var)
 All_Magozi_plot_dat$var <- factor(All_Magozi_plot_dat$var, levels=(c("WUE", "GPP", "ET", "E", "T")))
 All_Magozi_plot_dat$scheme <- "Magozi"
-saveRDS(All_Magozi_plot_dat, "All_Magozi_year.rds")
 
 ET_Magozi_plot_dat <- rbind(E_Magozi_plot_dat, T_Magozi_plot_dat, ET_Magozi_plot_dat)
 
@@ -361,8 +384,8 @@ ET_Magozi_year_plot <- ggplot(data= ET_Magozi_plot_dat, aes(x=year)) +
   geom_line(aes(y=value, col=var))+
   geom_ribbon(aes(ymin=ll, ymax=ul, fill=var), alpha=0.2)+
   scale_x_continuous(breaks=seq(2013, 2021, by=1))+
-  scale_color_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
-  scale_fill_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  scale_color_manual(values=c("blue", "red", "darkgreen"))+
+  scale_fill_manual(values=c("blue", "red", "darkgreen"))+
   theme(legend.title = element_blank())+
   labs(x="Year", y="mm/day")+
   theme_minimal() +theme(legend.title=element_blank())
@@ -375,42 +398,62 @@ gs <- list(ETa_Magozi_space_plot_gg,
 grid.arrange(grobs=gs, layout=laya, ncol=3)
 
 ETa_Magozi_oneplot_dat <- data.frame(x=ETa_Magozi_space_plot$data$fit$x,
-                                     y=ETa_Magozi_space_plot$data$fit$y,
-                                     z=ETa_Magozi_space_plot$data$fit$z,
-                                     var=c("Evapotranspiration"))
+                                         y=ETa_Magozi_space_plot$data$fit$y,
+                                         z=ETa_Magozi_space_plot$data$fit$z,
+                                         var=c("Evapotranspiration")) %>% na.omit()
 
 Ta_Magozi_oneplot_dat <- data.frame(x=Ta_Magozi_space_plot$data$fit$x,
-                                      y=Ta_Magozi_space_plot$data$fit$y,
-                                      z=Ta_Magozi_space_plot$data$fit$z,
-                                      var=c("Transpiration"))
+                                        y=Ta_Magozi_space_plot$data$fit$y,
+                                        z=Ta_Magozi_space_plot$data$fit$z,
+                                        var=c("Transpiration")) %>% na.omit()
 
 Ea_Magozi_oneplot_dat <- data.frame(x=Ea_Magozi_space_plot$data$fit$x,
-                                     y=Ea_Magozi_space_plot$data$fit$y,
-                                     z=Ea_Magozi_space_plot$data$fit$z,
-                                     var=c("Evaporation"))
+                                        y=Ea_Magozi_space_plot$data$fit$y,
+                                        z=Ea_Magozi_space_plot$data$fit$z,
+                                        var=c("Evaporation")) %>% na.omit()
 
 ET_Magozi_oneplot_dat <- rbind(ETa_Magozi_oneplot_dat, Ta_Magozi_oneplot_dat,
-                                Ea_Magozi_oneplot_dat)
+                                   Ea_Magozi_oneplot_dat)
 
 ET_Magozi_oneplot_dat$var <- factor(ET_Magozi_oneplot_dat$var,
-                                     levels=c("Evapotranspiration","Evaporation","Transpiration"))
+                                        levels=c("Evapotranspiration","Evaporation","Transpiration"))
 ET_Magozi_oneplot <- ggplot(data=ET_Magozi_oneplot_dat, aes(x=x, y=y))+geom_raster(aes(fill=z))+
   geom_contour(aes(z=z), colour="black") + facet_grid(rows=vars(var)) + coord_equal() +
-  scale_fill_viridis_c(name="mm")+theme(element_blank(), axis.text = element_blank())
+  scale_fill_viridis_c(name="mm", limits=c(-0.4,0.4), oob = scales::squish)+theme(element_blank(), axis.text = element_blank())
+ET_Magozi_oneplot
+
+GPP_Magozi_space_plot_dat <- as.data.frame(GPP_Magozi_space_plot$data$fit) %>% na.omit()
+GPP_Magozi_space_plot_dat$var <- c("Gross Primary Productivity")
+
+GPP_Magozi_space_plot_gg <- ggplot(data=GPP_Magozi_space_plot_dat, aes(x=x, y=y, z=tz))+
+  geom_raster(aes(fill=tz)) + geom_contour(colour="black") + scale_fill_viridis_c(name=expression(paste("GPP gC/m"^2)))+
+  facet_grid(rows=vars(var)) +
+  theme(element_blank(), axis.text = element_blank()) +coord_equal() 
+
+GPP_ET_Magozi_space <- ggdraw() +
+  draw_plot(GPP_Magozi_space_plot_gg, x=0.5, y=0.3,width = 0.5, height=0.35)+
+  draw_plot(ET_Magozi_oneplot, x=0, y=0,width = 0.5, height=1)#+
+
+
 
 
 ##
 
 p <- ggdraw() +
-  #draw_plot(WUE_Magozi_year_plot_gg, x=0, y=0.8, width=0.9, height=0.2) +
-  draw_plot(GPP_Magozi_year_plot_gg, x=0, y=0.6, width=1, height=0.4) +
+  draw_plot(WUE_Magozi_year_plot_gg, x=0, y=0.8, width=0.9, height=0.2) +
+  draw_plot(GPP_Magozi_year_plot_gg, x=0, y=0.6, width=0.9, height=0.2) +
   #draw_plot(GPP_Magozi_space_plot_gg, x=0.6, y=0.6,width = 0.4, height=0.2)+
   #draw_plot(WUE_Magozi_space_plot_gg, x=0.6, y=0.8,width = 0.4, height=0.2)+
   draw_plot(ET_Magozi_year_plot, x=0, y=0,width = 1, height=0.6)#+
-  #draw_plot(ET_Magozi_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+#draw_plot(ET_Magozi_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+```
 
-title <- ggdraw() + draw_label("Magozi", fontface='bold')
-Magozi_GAMplot <- plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+## Plots
+
+Finally, we can plot the annual and spatial trend results.
+```{r plots}
+Magozi_GAMplot <- plot_grid(p, ncol=1, rel_heights=c(0.1, 1))
 Magozi_GAMplot
-ggsave('Magozi_GAMplot.jpeg', dpi=900, height=10, width=10, device='jpeg')
-save(Magozi_GAMplot, file='Plots/Magozi_GAMplot.rdata')
+GPP_ET_Magozi_space
+
+```

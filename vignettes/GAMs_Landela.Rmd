@@ -1,3 +1,18 @@
+---
+title: "GAMs Landela block"
+author: Michael Wellington, Petra Kuhnert, Roger Lawes, Luigi Renzullo, Jamie Pittock,
+  Peter Ramshaw, Martin Moyo, Emmanuel Kimaro, Miguel Tafula, Andre van Rooyen
+date: '2022-08-22'
+output:
+  html_document:
+    df_print: paged
+vignette: |
+  %\VignetteIndexEntry{GAMs Landela} %\VignetteEncoding{UTF-8} %\Vi
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
 library(mgcv)
 library(tidyverse)
 library(lubridate)
@@ -16,11 +31,15 @@ library(rgdal)
 library(scales)
 library(sf)
 library(itsadug)
+```
 
-Landela_df <- readRDS("GAMM_data\\Landela_df.rds")
+## Bring in and clean data
 
-# Columns 
-Landela_df$sensor <- as.factor(Landela_df$sensor)
+We are using pre-prepared data from Landsat-7 and Landsat-8. We will select observations > 0 for GPP, E, T, and ET, and also filter to years greater than 2012. This is because Landsat-8 is required to give sufficient temporal resolution for trend analysis, and was launched in 2013.
+
+```{r data, echo=FALSE}
+Landela_df <- readRDS("data\\GAMM_data\\Landela_df.rds")
+
 Landela_df <- Landela_df %>% 
   mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
 
@@ -31,10 +50,13 @@ Landela_df_nona <- Landela_df[!is.na(Landela_df$GPP) & (Landela_df$GPP > 0) &
                                       !is.na(Landela_df$Ea) & (Landela_df$Ea > 0) & 
                                       !is.na(Landela_df$Ta) & (Landela_df$Ta > 0) &
                                       (Landela_df$year > 2012),]
+```
 
-#Landela_df_nona <- Landela_df_nona %>% mutate(GPP = replace(GPP, GPP>15, NA))
+## Define GAM structure
 
+Next, we define GAM formulae with different lags for rainfall. We will loop through these GAMs to select the best fit. We ended up choosing a 90 day fit as it delivered the lowest residual deviance across many, but not all, schemes. We kept this lag constant 
 
+```{r GAMs}
 # List of formulae with different time lags for rainfall (30, 60, 90, 120 day)
 GPP_f_30 <- log(GPP) ~ 
   # smooth term for year
@@ -113,6 +135,11 @@ GPP_Landela_GAM3 <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Landela_df_non
 GPP_Landela_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=Landela_df_nona)
 
 anova(GPP_Landela_GAM1, GPP_Landela_GAM2, GPP_Landela_GAM3, GPP_Landela_GAM4, test='F')
+```
+
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+
+``` {r runGAMS, include=FALSE, echo=FALSE}
 
 # Run GAMs for biomass (GPP)
 GPP_Landela_GAM <- GPP_Landela_GAM3
@@ -353,7 +380,6 @@ All_Landela_plot_dat <- rbind(GPP_Landela_plot_dat, WUE_Landela_plot_dat,
 All_Landela_plot_dat$var <- as.factor(All_Landela_plot_dat$var)
 All_Landela_plot_dat$var <- factor(All_Landela_plot_dat$var, levels=(c("WUE", "GPP", "ET", "E", "T")))
 All_Landela_plot_dat$scheme <- "Landela"
-saveRDS(All_Landela_plot_dat, "All_Landela_year.rds")
 
 ET_Landela_plot_dat <- rbind(E_Landela_plot_dat, T_Landela_plot_dat, ET_Landela_plot_dat)
 
@@ -364,8 +390,8 @@ ET_Landela_year_plot <- ggplot(data= ET_Landela_plot_dat, aes(x=year)) +
   geom_line(aes(y=value, col=var))+
   geom_ribbon(aes(ymin=ll, ymax=ul, fill=var), alpha=0.2)+
   scale_x_continuous(breaks=seq(2013, 2021, by=1))+
-  scale_color_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
-  scale_fill_manual(values=c("#0072B2", "#D55E00", "#009E73"))+
+  scale_color_manual(values=c("blue", "red", "darkgreen"))+
+  scale_fill_manual(values=c("blue", "red", "darkgreen"))+
   theme(legend.title = element_blank())+
   labs(x="Year", y="mm/day")+
   theme_minimal() +theme(legend.title=element_blank())
@@ -411,33 +437,38 @@ GPP_Landela_space_plot_gg <- ggplot(data=GPP_Landela_space_plot_dat, aes(x=x, y=
   theme(element_blank(), axis.text = element_blank()) +coord_equal() 
 
 GPP_ET_Landela_space <- ggdraw() +
-  draw_plot(GPP_Landela_space_plot_gg, x=0.5, y=0,width = 0.5, height=1)+
+  draw_plot(GPP_Landela_space_plot_gg, x=0.5, y=0.3,width = 0.5, height=0.35)+
   draw_plot(ET_Landela_oneplot, x=0, y=0,width = 0.5, height=1)#+
-ggsave('Landela_GPP_ET_space.jpeg', width=9, height=7, dpi=900, plot=GPP_ET_Landela_space)
+
 
 
 
 ##
 
 p <- ggdraw() +
-  draw_plot(WUE_Landela_year_plot_gg, x=0, y=0.7, width=0.87, height=0.3) +
-  draw_plot(GPP_Landela_year_plot_gg, x=0, y=0.4, width=0.87, height=0.3) +
+  draw_plot(WUE_Landela_year_plot_gg, x=0, y=0.8, width=0.9, height=0.2) +
+  draw_plot(GPP_Landela_year_plot_gg, x=0, y=0.6, width=0.9, height=0.2) +
   #draw_plot(GPP_Landela_space_plot_gg, x=0.6, y=0.6,width = 0.4, height=0.2)+
   #draw_plot(WUE_Landela_space_plot_gg, x=0.6, y=0.8,width = 0.4, height=0.2)+
-  draw_plot(ET_Landela_year_plot, x=0, y=0,width = 1, height=0.4) #+
-  #draw_plot(ET_Landela_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+  draw_plot(ET_Landela_year_plot, x=0, y=0,width = 1, height=0.6)#+
+#draw_plot(ET_Landela_oneplot, x=0.6, y=0,width = 0.4, height=0.6) 
+```
 
-title <- ggdraw() #+ draw_label("Landela", fontface='bold')
-Landela_GAMplot <- plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+## Plots
+
+We can plot the annual and spatial trend results.
+```{r plots}
+Landela_GAMplot <- plot_grid(p, ncol=1, rel_heights=c(0.1, 1))
 Landela_GAMplot
-ggsave('Landela_GAMplot.jpeg', dpi=900, height=6, width=6, device='jpeg')
+GPP_ET_Landela_space
 
-grid.arrange(GPP_Landela_space_plot_gg,
-             ETa_Landela_space_plot_gg,
-             Ta_Landela_space_plot_gg,
-             Ea_Landela_space_plot_gg)
+```
 
-######################## Linear GAMS ##################################
+## Linear GAMs
+
+We need to change the GAM definition to extract linear trends for year, as below.
+
+``` {r linearGAMs}
 WUE_f_90_lin <- log(WUE) ~ 
   # smooth term for year
   year + 
@@ -450,8 +481,6 @@ WUE_f_90_lin <- log(WUE) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30)
 
@@ -467,8 +496,6 @@ GPP_f_90_lin <- log(GPP) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("gp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30) 
 
@@ -484,8 +511,6 @@ ETa_f_90_lin <- log(ETa) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30)
 
@@ -501,8 +526,6 @@ Ta_f_90_lin <- log(Ta) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30)
 
@@ -518,19 +541,40 @@ Ea_f_90_lin <- log(Ea) ~
   # space x time
   ti(x, y, year, d = c(2, 1), bs = c("tp", "cr"), 
      k = c(50,9)) +  
-  # random effect for ls
-  #s(sensor, bs = 're') + 
   # rainfall lag
   s(chirps_90, bs="cr", k=30)
+```
+
+Finally, we extract the % annual change, as below. We can see there is a 4.8% trend in GPP.
+
+``` {r GPP_lin}
 
 GPP_Landela_GAM1_lin <- bam(GPP_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
 (exp(GPP_Landela_GAM1_lin$coefficients["year"]) - 1)*100
 
-ETa_Landela_GAM1_lin <- bam(ETa_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
-(exp(ETa_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+```
+
+Similarly, there is a 4.6% trend in T.
+
+``` {r T_lin}
 
 Ta_Landela_GAM1_lin <- bam(Ta_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
 (exp(Ta_Landela_GAM1_lin$coefficients["year"]) - 1)*100
 
+```
+
+Inversely, there is a -13.5% trend in E.
+
+``` {r E_lin}
+
 Ea_Landela_GAM1_lin <- bam(Ea_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
 (exp(Ea_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+
+```
+
+Finally, there is a -3.6% trend in ET, indicating that GPP was decoupled from ET over this period at Landela.
+
+``` {r ET_lin}
+ETa_Landela_GAM1_lin <- bam(ETa_f_90_lin, discrete=TRUE, nthreads=8, data=Landela_df_nona)
+(exp(ETa_Landela_GAM1_lin$coefficients["year"]) - 1)*100
+```
