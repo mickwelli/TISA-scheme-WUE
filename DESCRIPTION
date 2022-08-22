@@ -39,4 +39,5 @@ Suggests:
     rmarkdown,
     markdown
 VignetteBuilder: knitr
-URL: https://mickwelli.github.io/tisa-scheme-wue/
+URL: https://mickwelli.github.io/tisa-scheme-wue/,
+    https://mickwelli.github.io/TISA-scheme-WUE/
