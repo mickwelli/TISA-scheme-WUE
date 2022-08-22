@@ -7,7 +7,9 @@ output:
   html_document:
     df_print: paged
 vignette: |
-  %\VignetteIndexEntry{GAMs 25 de Setembro} %\VignetteEncoding{UTF-8} %\Vi
+  %\VignetteIndexEntry{GAMs 25 de Setembro} 
+  %\VignetteEncoding{UTF-8} 
+  %\VignetteEngine{knitr::rmarkdown}
 ---
 
 ```{r setup, include=FALSE}
@@ -31,6 +33,9 @@ library(rgdal)
 library(scales)
 library(sf)
 library(itsadug)
+library(TISAschemeWUE)
+
+
 ```
 
 ## Bring in and clean data
@@ -38,7 +43,8 @@ library(itsadug)
 We are using pre-prepared data from Landsat-7 and Landsat-8. We will select observations > 0 for GPP, E, T, and ET, and also filter to years greater than 2012. This is because Landsat-8 is required to give sufficient temporal resolution for trend analysis, and was launched in 2013.
 
 ```{r data, include=FALSE}
-deSetembro_df <- readRDS("data\\GAMM_data\\deSetembro_df.rds")
+library(TISAschemeWUE)
+data("deSetembro_df")
 
 deSetembro_df <- deSetembro_df %>% 
   mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))

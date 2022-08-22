@@ -1,12 +1,12 @@
-Package: UkraineCrops
+Package: TISAschemeWUE
 Type: Package
-Title: Ukraine-crop Analysis
+Title: TISA-scheme-WUE
 Version: 0.9.0
 Author: Michael Wellington
 Maintainer: Michael Wellington <Michael.Wellington@anu.edu.au>
-Description: This package contains all data and code used to analyse Ukraine grain supply.
+Description: This package contains all data and code used to analyse trends in crop production and water consumption at southern African Irrigation schemes.
 Encoding: UTF-8
-Date: 2022-08-03
+Date: 2022-08-22
 Authors@R: c(
              person("Michael", "Wellington", email = "Michael.Wellington@anu.edu.au", role = c("aut", "cre")), 
              person("Petra", "Kuhnert", email = "Petra.Kuhnert@data61.csiro.au", role = c("ctb", "ths")), 
@@ -14,20 +14,22 @@ Authors@R: c(
            )
 Depends:
     R (>= 4.1.0),
-    ggplot2,
-    ggsci,
-    gratia,
-    gridExtra,
-    gstat,
-    itsadug,
-    maps,
-    mgcViz,
     mgcv,
+    tidyverse,
+    lubridate,
+    mgcViz,
+    viridis,
+    gridExtra,
+    ggpubr,
+    cowplot,
+    gratia,
+    zoo,
+    ggsci,
+    ggbreak,
     rgdal,
     scales,
     sf,
-    stringr,
-    tidyverse
+    itsadug
 License: GPL-3
 LazyLoad: TRUE
 LazyData: TRUE
@@ -37,4 +39,4 @@ Suggests:
     rmarkdown,
     markdown
 VignetteBuilder: knitr
-URL: https://mickwelli.github.io/Ukraine-crops/
+URL: https://mickwelli.github.io/tisa-scheme-wue/

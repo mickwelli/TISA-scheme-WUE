@@ -7,7 +7,9 @@ output:
   html_document:
     df_print: paged
 vignette: |
-  %\VignetteIndexEntry{WUE plots} %\VignetteEncoding{UTF-8} %\Vi
+  %\VignetteIndexEntry{WUE plots}
+  %\VignetteEncoding{UTF-8} 
+  %\VignetteEngine{knitr::rmarkdown}
 ---
 
 ```{r setup, include=FALSE}
@@ -15,22 +17,23 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(cowplot)
+library(TISAschemeWUE)
 ```
 
 ## Bring in and organise data
 
 
 ```{r data, include=FALSE}
-Mkoba_dat <- readRDS('data/WUE_data/All_Mkoba_year.rds')
-Silalatshani_dat <- readRDS('data/WUE_data/All_Silalatshani_year.rds')
-Kiwere_dat <- readRDS('data/WUE_data/All_Kiwere_year.rds')
-Magozi_dat <- readRDS('data/WUE_data/All_Magozi_year.rds')
-deSetembro_dat <- readRDS('data/WUE_data/All_deSetembro_year.rds')
-Khanimambo_dat <- readRDS('data/WUE_data/All_Khanimambo_year.rds')
+data("All_Mkoba_year")
+data("All_Silalatshani_year")
+data("All_Kiwere_year")
+data("All_Magozi_year")
+data("All_deSetembro_year")
+data("All_Khanimambo_year")
 
-WUE_year_dat <- rbind(Mkoba_dat, Silalatshani_dat,
-                      Kiwere_dat, Magozi_dat,
-                      deSetembro_dat, Khanimambo_dat)
+WUE_year_dat <- rbind(All_Mkoba_year, All_Silalatshani_year,
+                      All_Kiwere_year, All_Magozi_year,
+                      All_deSetembro_year, All_Khanimambo_year)
 WUE_year_dat$scheme <- as.factor(WUE_year_dat$scheme)
 levels(WUE_year_dat$scheme)[levels(WUE_year_dat$scheme)=="deSetembro"] <- "25 de Setembro"
 summary(WUE_year_dat)

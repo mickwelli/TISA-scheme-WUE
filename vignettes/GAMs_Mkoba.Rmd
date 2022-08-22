@@ -7,7 +7,9 @@ output:
   html_document:
     df_print: paged
 vignette: |
-  %\VignetteIndexEntry{GAMs Mkoba} %\VignetteEncoding{UTF-8} %\Vi
+  %\VignetteIndexEntry{GAMs Mkoba} 
+  %\VignetteEncoding{UTF-8} 
+  %\VignetteEngine{knitr::rmarkdown}
 ---
 
 ```{r setup, include=FALSE}
@@ -31,6 +33,7 @@ library(rgdal)
 library(scales)
 library(sf)
 library(itsadug)
+library(TISAschemeWUE)
 ```
 
 ## Bring in and clean data
@@ -38,7 +41,7 @@ library(itsadug)
 We are using pre-prepared data from Landsat-7 and Landsat-8. We will select observations > 0 for GPP, E, T, and ET, and also filter to years greater than 2012. This is because Landsat-8 is required to give sufficient temporal resolution for trend analysis, and was launched in 2013.
 
 ```{r data, include=FALSE}
-Mkoba_df <- readRDS("data\\GAMM_data\\Mkoba_df.rds")
+data("Mkoba_df")
 
 Mkoba_df <- Mkoba_df %>% 
   mutate_at(vars(date), dplyr::funs(year = lubridate::year, month = lubridate::month, day =lubridate::day))
