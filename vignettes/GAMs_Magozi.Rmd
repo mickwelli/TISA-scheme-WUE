@@ -134,9 +134,9 @@ anova(GPP_Magozi_GAM1, GPP_Magozi_GAM2, GPP_Magozi_GAM3, GPP_Magozi_GAM4, test='
 
 ## Run GAMs
 
-Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+First we will run a GAM on GPP data and check the diagnostic plots.
 
-``` {r runGAMSGPP, include=FALSE, echo=FALSE}
+``` {r runGAMsCheck}
 
 # Run GAMs for biomass (GPP)
 GPP_Magozi_GAM <- GPP_Magozi_GAM3
@@ -146,8 +146,11 @@ valRho_Magozi_GPP <- acf(resids_Magozi_GPP, plot=FALSE)$acf[2]
 GPP_Magozi_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Magozi_df_nona, rho = valRho_Magozi_GPP)
 GPP_Magozi_GAM1_vis <- getViz(GPP_Magozi_GAM)
 
-check(GPP_Magozi_GAM1_vis)
+check_resid(GPP_Magozi_GAM)
+```
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
 
+``` {r runGAMSGPP, include=FALSE, echo=FALSE}
 GPP_Magozi_year_plot <- plot_smooth(GPP_Magozi_GAM, view = 'year', transform = exp)
 
 ##

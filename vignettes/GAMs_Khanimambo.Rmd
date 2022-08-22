@@ -135,9 +135,9 @@ anova(GPP_Khanimambo_GAM1, GPP_Khanimambo_GAM2, GPP_Khanimambo_GAM3, GPP_Khanima
 
 ## Run GAMs
 
-Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+First we will run a GAM on GPP data and check the diagnostic plots.
 
-``` {r runGAMSGPP, include=FALSE, echo=FALSE}
+``` {r runGAMSGPPcheck}
 
 # Run GAMs for biomass (GPP)
 GPP_Khanimambo_GAM <- GPP_Khanimambo_GAM3
@@ -147,7 +147,12 @@ valRho_Khanimambo_GPP <- acf(resids_Khanimambo_GPP, plot=FALSE)$acf[2]
 GPP_Khanimambo_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Khanimambo_df_nona, rho = valRho_Khanimambo_GPP)
 GPP_Khanimambo_GAM1_vis <- getViz(GPP_Khanimambo_GAM)
 
-check(GPP_Khanimambo_GAM1_vis)
+check_resid(GPP_Khanimambo_GAM)
+```
+
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+
+``` {r runGAMSGPP, include=FALSE, echo=FALSE}
 
 GPP_Khanimambo_year_plot <- plot_smooth(GPP_Khanimambo_GAM, view = 'year', transform = exp)
 

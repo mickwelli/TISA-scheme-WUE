@@ -139,10 +139,11 @@ GPP_Landela_GAM4 <- bam(GPP_f_120, discrete=TRUE, nthreads=8, data=Landela_df_no
 
 anova(GPP_Landela_GAM1, GPP_Landela_GAM2, GPP_Landela_GAM3, GPP_Landela_GAM4, test='F')
 ```
+## Run GAMs
 
-Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+First we will run a GAM on GPP data and check the diagnostic plots.
 
-``` {r runGAMS, include=FALSE, echo=FALSE}
+``` {r runGAMScheck}
 
 # Run GAMs for biomass (GPP)
 GPP_Landela_GAM <- GPP_Landela_GAM3
@@ -152,8 +153,12 @@ valRho_Landela_GPP <- acf(resids_Landela_GPP, plot=FALSE)$acf[2]
 GPP_Landela_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=Landela_df_nona, rho = valRho_Landela_GPP)
 GPP_Landela_GAM1_vis <- getViz(GPP_Landela_GAM)
 
-check(GPP_Landela_GAM1_vis)
+check_resid(GPP_Landela_GAM)
+```
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
 
+
+``` {r runGAMS, include=FALSE, echo=FALSE}
 GPP_Landela_year_plot <- plot_smooth(GPP_Landela_GAM, view = 'year', transform = exp)
 
 ##

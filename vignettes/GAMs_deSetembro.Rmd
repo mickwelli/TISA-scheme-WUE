@@ -137,9 +137,9 @@ anova(GPP_deSetembro_GAM1, GPP_deSetembro_GAM2, GPP_deSetembro_GAM3, GPP_deSetem
 
 ## Run GAMs
 
-Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+First we will run a GAM on GPP data and check the diagnostic plots.
 
-``` {r runGAMSGPP, include=FALSE, echo=FALSE}
+``` {r runGAMScheck}
 
 # Run GAMs for biomass (GPP)
 GPP_deSetembro_GAM <- GPP_deSetembro_GAM3
@@ -149,8 +149,12 @@ valRho_deSetembro_GPP <- acf(resids_deSetembro_GPP, plot=FALSE)$acf[2]
 GPP_deSetembro_GAM <- bam(GPP_f_90, discrete=TRUE, nthreads=8, data=deSetembro_df_nona, rho = valRho_deSetembro_GPP)
 GPP_deSetembro_GAM1_vis <- getViz(GPP_deSetembro_GAM)
 
-check(GPP_deSetembro_GAM1_vis)
+check_resid(GPP_deSetembro_GAM)
+```
 
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long so is hidden in this vignette, but can be found on the GitHub repository.
+
+``` {r runGAMSGPP, include=FALSE, echo=FALSE}
 GPP_deSetembro_year_plot <- plot_smooth(GPP_deSetembro_GAM, view = 'year', transform = exp)
 
 ##
