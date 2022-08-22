@@ -11,7 +11,7 @@ To reproduce the analysis and plots, run the scheme specific R scripts, then run
 
 The map below shows the location and extent of each irrigation scheme analysed.
 
-![Map of irrigation schemes](images/Loc_map.jpeg)
+![Map of irrigation schemes](https://github.com/mickwelli/TISA-scheme-WUE/raw/main/images/Loc_map.jpeg)
 
 ## License
 
