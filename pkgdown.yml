@@ -10,5 +10,8 @@ articles:
   GAMs_Mkoba: GAMs_Mkoba.html
   GAMs_Silalatshani: GAMs_Silalatshani.html
   WUE_plots: WUE_plots.html
-last_built: 2022-08-22T07:17Z
+last_built: 2022-08-22T23:41Z
+urls:
+  reference: https://mickwelli.github.io/TISA-scheme-WUE/reference
+  article: https://mickwelli.github.io/TISA-scheme-WUE/articles
 

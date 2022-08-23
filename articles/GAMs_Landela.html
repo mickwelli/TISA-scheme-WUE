@@ -215,19 +215,39 @@ across many, but not all, schemes. We kept this lag constant</p>
 <span><span class="co">## 4    268018      76697 -0.20884  -1776.3 30933 &lt; 2.2e-16 ***</span></span>
 <span><span class="co">## ---</span></span>
 <span><span class="co">## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span></span></code></pre>
-<p>Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite
-long so is hidden in this vignette, but can be found on the GitHub
+</div>
+<div class="section level2">
+<h2 id="run-gams">Run GAMs<a class="anchor" aria-label="anchor" href="#run-gams"></a>
+</h2>
+<p>First we will run a GAM on GPP data and check the diagnostic
+plots.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Run GAMs for biomass (GPP)</span></span>
+<span><span class="va">GPP_Landela_GAM</span> <span class="op">&lt;-</span> <span class="va">GPP_Landela_GAM3</span></span>
+<span></span>
+<span><span class="va">resids_Landela_GPP</span> <span class="op">&lt;-</span> <span class="fu">residuals.gam</span><span class="op">(</span><span class="va">GPP_Landela_GAM</span><span class="op">)</span></span>
+<span><span class="va">valRho_Landela_GPP</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/acf.html" class="external-link">acf</a></span><span class="op">(</span><span class="va">resids_Landela_GPP</span>, plot<span class="op">=</span><span class="cn">FALSE</span><span class="op">)</span><span class="op">$</span><span class="va">acf</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span></span>
+<span><span class="va">GPP_Landela_GAM</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">GPP_f_90</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Landela_df_nona</span>, rho <span class="op">=</span> <span class="va">valRho_Landela_GPP</span><span class="op">)</span></span>
+<span><span class="va">GPP_Landela_GAM1_vis</span> <span class="op">&lt;-</span> <span class="fu">getViz</span><span class="op">(</span><span class="va">GPP_Landela_GAM</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">check_resid</span><span class="op">(</span><span class="va">GPP_Landela_GAM</span><span class="op">)</span></span></code></pre></div>
+<p><img src="GAMs_Landela_files/figure-html/runGAMScheck-1.png" width="700"><img src="GAMs_Landela_files/figure-html/runGAMScheck-2.png" width="700"></p>
+<pre><code><span><span class="co">## Warning in check_resid(GPP_Landela_GAM): Plot 4 is canceled, as no split_pred is</span></span>
+<span><span class="co">## defined.</span></span></code></pre>
+<p><img src="GAMs_Landela_files/figure-html/runGAMScheck-3.png" width="700">
+Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite long
+so is hidden in this vignette, but can be found on the GitHub
 repository.</p>
 </div>
 <div class="section level2">
 <h2 id="plots">Plots<a class="anchor" aria-label="anchor" href="#plots"></a>
 </h2>
 <p>We can plot the annual and spatial trend results.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">Landela_GAMplot</span> <span class="op">&lt;-</span> <span class="fu">plot_grid</span><span class="op">(</span><span class="va">p</span>, ncol<span class="op">=</span><span class="fl">1</span>, rel_heights<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">Landela_GAMplot</span></span></code></pre></div>
 <p><img src="GAMs_Landela_files/figure-html/plots-1.png" width="700"></p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">GPP_ET_Landela_space</span></span></code></pre></div>
 <p><img src="GAMs_Landela_files/figure-html/plots-2.png" width="700"></p>
 </div>
@@ -236,7 +256,7 @@ repository.</p>
 </h2>
 <p>We need to change the GAM definition to extract linear trends for
 year, as below.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">WUE_f_90_lin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">WUE</span><span class="op">)</span> <span class="op">~</span> </span>
 <span>  <span class="co"># smooth term for year</span></span>
 <span>  <span class="va">year</span> <span class="op">+</span> </span>
@@ -313,26 +333,26 @@ year, as below.</p>
 <span>  <span class="fu">s</span><span class="op">(</span><span class="va">chirps_90</span>, bs<span class="op">=</span><span class="st">"cr"</span>, k<span class="op">=</span><span class="fl">30</span><span class="op">)</span></span></code></pre></div>
 <p>Finally, we extract the % annual change, as below. We can see there
 is a 4.8% trend in GPP.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">GPP_Landela_GAM1_lin</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">GPP_f_90_lin</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Landela_df_nona</span><span class="op">)</span></span>
 <span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">GPP_Landela_GAM1_lin</span><span class="op">$</span><span class="va">coefficients</span><span class="op">[</span><span class="st">"year"</span><span class="op">]</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="fl">100</span></span></code></pre></div>
 <pre><code><span><span class="co">##     year </span></span>
 <span><span class="co">## 4.768329</span></span></code></pre>
 <p>Similarly, there is a 4.6% trend in T.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">Ta_Landela_GAM1_lin</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">Ta_f_90_lin</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Landela_df_nona</span><span class="op">)</span></span>
 <span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">Ta_Landela_GAM1_lin</span><span class="op">$</span><span class="va">coefficients</span><span class="op">[</span><span class="st">"year"</span><span class="op">]</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="fl">100</span></span></code></pre></div>
 <pre><code><span><span class="co">##     year </span></span>
 <span><span class="co">## 4.626433</span></span></code></pre>
 <p>Inversely, there is a -13.5% trend in E.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">Ea_Landela_GAM1_lin</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">Ea_f_90_lin</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Landela_df_nona</span><span class="op">)</span></span>
 <span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">Ea_Landela_GAM1_lin</span><span class="op">$</span><span class="va">coefficients</span><span class="op">[</span><span class="st">"year"</span><span class="op">]</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="fl">100</span></span></code></pre></div>
 <pre><code><span><span class="co">##      year </span></span>
 <span><span class="co">## -13.54843</span></span></code></pre>
 <p>Finally, there is a -3.6% trend in ET, indicating that GPP was
 decoupled from ET over this period at Landela.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ETa_Landela_GAM1_lin</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">ETa_f_90_lin</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Landela_df_nona</span><span class="op">)</span></span>
 <span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">ETa_Landela_GAM1_lin</span><span class="op">$</span><span class="va">coefficients</span><span class="op">[</span><span class="st">"year"</span><span class="op">]</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">*</span><span class="fl">100</span></span></code></pre></div>
 <pre><code><span><span class="co">##      year </span></span>

@@ -198,6 +198,22 @@ across many, but not all, schemes. We kept this lag constant</p>
 <div class="section level2">
 <h2 id="run-gams">Run GAMs<a class="anchor" aria-label="anchor" href="#run-gams"></a>
 </h2>
+<p>First we will run a GAM on GPP data and check the diagnostic
+plots.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Run GAMs for biomass (GPP)</span></span>
+<span><span class="va">GPP_Khanimambo_GAM</span> <span class="op">&lt;-</span> <span class="va">GPP_Khanimambo_GAM3</span></span>
+<span></span>
+<span><span class="va">resids_Khanimambo_GPP</span> <span class="op">&lt;-</span> <span class="fu">residuals.gam</span><span class="op">(</span><span class="va">GPP_Khanimambo_GAM</span><span class="op">)</span></span>
+<span><span class="va">valRho_Khanimambo_GPP</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/acf.html" class="external-link">acf</a></span><span class="op">(</span><span class="va">resids_Khanimambo_GPP</span>, plot<span class="op">=</span><span class="cn">FALSE</span><span class="op">)</span><span class="op">$</span><span class="va">acf</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span></span>
+<span><span class="va">GPP_Khanimambo_GAM</span> <span class="op">&lt;-</span> <span class="fu">bam</span><span class="op">(</span><span class="va">GPP_f_90</span>, discrete<span class="op">=</span><span class="cn">TRUE</span>, nthreads<span class="op">=</span><span class="fl">8</span>, data<span class="op">=</span><span class="va">Khanimambo_df_nona</span>, rho <span class="op">=</span> <span class="va">valRho_Khanimambo_GPP</span><span class="op">)</span></span>
+<span><span class="va">GPP_Khanimambo_GAM1_vis</span> <span class="op">&lt;-</span> <span class="fu">getViz</span><span class="op">(</span><span class="va">GPP_Khanimambo_GAM</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">check_resid</span><span class="op">(</span><span class="va">GPP_Khanimambo_GAM</span><span class="op">)</span></span></code></pre></div>
+<p><img src="GAMs_Khanimambo_files/figure-html/runGAMSGPPcheck-1.png" width="700"><img src="GAMs_Khanimambo_files/figure-html/runGAMSGPPcheck-2.png" width="700"></p>
+<pre><code><span><span class="co">## Warning in check_resid(GPP_Khanimambo_GAM): Plot 4 is canceled, as no split_pred</span></span>
+<span><span class="co">## is defined.</span></span></code></pre>
+<p><img src="GAMs_Khanimambo_files/figure-html/runGAMSGPPcheck-3.png" width="700"></p>
 <p>Now we will run GAMs on GPP, E,T, and ET. This code chunk is quite
 long so is hidden in this vignette, but can be found on the GitHub
 repository.</p>
@@ -206,11 +222,11 @@ repository.</p>
 <h2 id="plots">Plots<a class="anchor" aria-label="anchor" href="#plots"></a>
 </h2>
 <p>Finally, we can plot the annual and spatial trend results.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">Khanimambo_GAMplot</span> <span class="op">&lt;-</span> <span class="fu">plot_grid</span><span class="op">(</span><span class="va">p</span>, ncol<span class="op">=</span><span class="fl">1</span>, rel_heights<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">Khanimambo_GAMplot</span></span></code></pre></div>
 <p><img src="GAMs_Khanimambo_files/figure-html/plots-1.png" width="700"></p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">GPP_ET_Khanimambo_space</span></span></code></pre></div>
 <p><img src="GAMs_Khanimambo_files/figure-html/plots-2.png" width="700"></p>
 </div>
